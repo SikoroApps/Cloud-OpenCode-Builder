@@ -3,7 +3,7 @@
 Cloud OpenCode follows a dependency-first approach. Each batch must pass its documented exit
 criteria before dependent work starts.
 
-## Batch 1 — Foundation (in progress)
+## Batch 1 — Foundation (COMPLETE — CI run 45273309014)
 
 Scope:
 - Repository skeleton and documentation.

@@ -50,4 +50,12 @@ exhausted quotas. It avoids infinite retries and verifies availability before cl
 The Android project is under `android/`. CI runs unit tests, lint, an emulator launch smoke test
 and assembles a debug APK on GitHub-hosted runners.
 
-See `docs/BUILD_ORDER.md` for the dependency-first plan and batch gates.
+## Current status
+
+Batch 1 (foundation) is **COMPLETE** with green CI run `45273309014`: 3 Android unit tests,
+10 backend core tests, lint, API 35 emulator smoke test and debug APK evidence. Debug APK
+SHA-256: `d4975c4a2f33bb986d88d62beccfb53e13f3c0f7a5765bb61e2504d0398507e1`. No hosted
+backend, GitHub integration, signed release or AI chat endpoint is deployed yet.
+
+See `docs/BUILD_ORDER.md` for the dependency-first plan and batch gates, and
+`docs/PROGRESS.md` for detailed evidence.
