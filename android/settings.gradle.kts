@@ -14,3 +14,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "CloudOpenCode"
 include(":app")
+include(":backend")
