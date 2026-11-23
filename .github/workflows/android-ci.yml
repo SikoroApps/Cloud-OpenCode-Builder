@@ -1,0 +1,160 @@
+name: Android CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle build cache
+        uses: gradle/actions/setup-gradle@v4
+      - name: Locate Android SDK command-line tools
+        id: sdk
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ANDROID_HOME:-}" || { echo "ANDROID_HOME is not set"; exit 1; }
+          test -d "$ANDROID_HOME/cmdline-tools" || { echo "cmdline-tools missing"; exit 1; }
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -n 1)"
+          test -n "$sdkmanager" || { echo "sdkmanager not found"; exit 1; }
+          echo "path=$sdkmanager" >> "$GITHUB_OUTPUT"
+          echo "$(dirname "$sdkmanager")" >> "$GITHUB_PATH"
+      - name: Accept SDK licenses and install platform
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +o pipefail
+          yes | "${{ steps.sdk.outputs.path }}" --licenses > /dev/null
+          set -o pipefail
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Validate Gradle project
+        working-directory: android
+        run: ./gradlew projects --no-daemon
+      - name: Run unit tests
+        working-directory: android
+        run: ./gradlew testDebugUnitTest --no-daemon
+      - name: Upload unit test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-opencode-unit-test-results
+          path: android/app/build/test-results/testDebugUnitTest/*.xml
+          if-no-files-found: error
+      - name: Run Android lint
+        working-directory: android
+        run: ./gradlew lintDebug --no-daemon
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-opencode-lint
+          path: android/app/build/reports/lint-results-debug.*
+          if-no-files-found: warn
+      - name: Assemble debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+      - name: Verify APK package name
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          PACKAGE="$("$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")"
+          echo "APK package name: $PACKAGE"
+          test "$PACKAGE" = "com.sikorokoro44.cloudopencode.debug"
+          echo "Debug APK SHA-256: $(sha256sum "$APK" | awk '{print $1}')"
+      - name: Assert debug APK contains no server secret markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          strings="$(unzip -p "$APK" 'classes*.dex' 'resources.arsc' | strings || true)"
+          for marker in SUPABASE_SERVICE_ROLE_KEY SUPABASE_ACCESS_TOKEN ESMS_API_KEY service_role sb_secret_ esms_test_ CLOUD_API_KEY; do
+            if grep -Fqi "$marker" <<< "$strings"; then
+              echo "Client artifact contains server secret marker: $marker" >&2
+              exit 1
+            fi
+          done
+          echo "Client artifact secret marker scan passed."
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-opencode-debug
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+  device-smoke:
+    name: Emulator app-launch smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle build cache
+        uses: gradle/actions/setup-gradle@v4
+      - name: Locate Android SDK command-line tools
+        id: sdk
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ANDROID_HOME:-}" || { echo "ANDROID_HOME is not set"; exit 1; }
+          test -d "$ANDROID_HOME/cmdline-tools" || { echo "cmdline-tools missing"; exit 1; }
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -n 1)"
+          test -n "$sdkmanager" || { echo "sdkmanager not found"; exit 1; }
+          echo "path=$sdkmanager" >> "$GITHUB_OUTPUT"
+          echo "$(dirname "$sdkmanager")" >> "$GITHUB_PATH"
+      - name: Install SDK platform and emulator image
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +o pipefail
+          yes | "${{ steps.sdk.outputs.path }}" --licenses > /dev/null
+          set -o pipefail
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools" "system-images;android-35;google_apis;x86_64"
+      - name: Enable KVM access for emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo chmod 666 /dev/kvm
+          ls -l /dev/kvm
+      - name: Run emulator smoke test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-linux-hw-accel: false
+          working-directory: android
+          script: ./gradlew connectedDebugAndroidTest --no-daemon
+      - name: Upload device test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-opencode-device-test-results
+          path: android/app/build/reports/androidTests/connected/**
+          if-no-files-found: warn
