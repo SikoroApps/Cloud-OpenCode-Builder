@@ -279,3 +279,15 @@ Started from the unchanged Phase 4 checkpoint `d136bda`. Detailed per-batch evid
   physical-device evidence).
 - Running the checker here returned `{"status":"blocked","reason":"adb_unavailable"}` (exit `2`), so
   physical-device verification remains incomplete.
+
+### Final Phase 5 CI evidence
+
+On final implementation commit `417cc2b`:
+
+- `Cloud Backend CI` `45443444610`: **success** (60 backend tests, typecheck, masked config and
+  deployment checks, health smoke and container build).
+- `Android CI` `45443444436`: **success** (unit tests, backend core tests, lint, debug APK with
+  package-name and secret-marker checks, API 35 emulator smoke test and HTTPS integration test).
+
+These runs verify code and mocked/simulated integration only. They are not live OAuth, real
+repository commit, application-dispatched Actions run, real signed APK or physical-device evidence.
