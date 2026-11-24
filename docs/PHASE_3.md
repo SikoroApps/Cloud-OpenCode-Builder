@@ -47,8 +47,24 @@ one dependency-ready batch at a time as defined in `docs/BUILD_ORDER.md`.
 
 No client ID, secret, token or encryption key is present in this repository.
 
+### Batch 3.2 — Repository management (IMPLEMENTED, LIVE BLOCKED)
+
+- `GET /api/github/repositories` lists accessible repositories through the backend using the
+  encrypted stored token; no token is returned to Android.
+- `POST /api/github/repositories` creates a **new public repository** (`private:false`,
+  `auto_init:true`) and records it as a project. If the name already exists it returns
+  `409 repository_exists`; it never reuses or updates an existing repository implicitly.
+- `PUT /api/github/selection` explicitly selects an already-recorded repository;
+  `GET /api/github/selection` reports the active project.
+- Android client methods and HTTPS integration coverage were added.
+- GitHub service tests cover repository listing/creation payloads; API tests cover list, create,
+  duplicate rejection, selection and token non-exposure.
+- Local backend tests: **15 passed, 0 failures** (8 Phase 2 + 7 Phase 3 tests). Live GitHub calls
+  remain blocked by the OAuth setup in Batch 3.1.
+
 ### Remaining batches
 
-Repository management, cloud file editing/commits, Actions orchestration, APK delivery and signed
-release preparation are intentionally blocked until 3.1 is live-configured and its CI evidence is
-recorded. They are listed in dependency order in `docs/BUILD_ORDER.md`.
+Cloud file editing/commits, Actions orchestration, APK delivery and signed release preparation are
+next in dependency order. They are listed in `docs/BUILD_ORDER.md`. The Android HTTPS job now
+requests a fresh Cloudflare quick tunnel if an assigned hostname is not reachable, because a CI run
+on the first Phase 3 commit failed solely on temporary-tunnel DNS propagation.

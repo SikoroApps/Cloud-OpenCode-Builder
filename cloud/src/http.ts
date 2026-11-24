@@ -3,7 +3,19 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { hashPassword, verifyPassword, createUserSession, resolveUserByToken } from "./auth.ts";
 import { getChatHistory, appendChatMessage, runAssistantTurn } from "./chat.ts";
 import { FALLBACK_CHAIN } from "./ai.ts";
-import { getDb, insertGithubState, findGithubState, deleteGithubState, saveGithubConnection, findGithubConnection, deleteGithubConnection } from "./db.ts";
+import {
+  getDb,
+  insertGithubState,
+  findGithubState,
+  deleteGithubState,
+  saveGithubConnection,
+  findGithubConnection,
+  deleteGithubConnection,
+  saveProject,
+  findProjectByRepo,
+  findSelectedProject,
+  selectProject,
+} from "./db.ts";
 import { loadConfig, type CloudConfig, type GithubConfig } from "./config.ts";
 import { createGithubService, decryptToken, encryptToken, isGithubConfigured, type GithubService } from "./github.ts";
 
@@ -12,6 +24,18 @@ export interface AuthUser { id: string; email: string }
 export interface ApiDependencies {
   githubConfig: GithubConfig;
   githubService: GithubService;
+}
+
+class ApiRequestError extends Error {
+  status: number;
+  code: string;
+
+  constructor(status: number, code: string) {
+    super(code);
+    this.name = "ApiRequestError";
+    this.status = status;
+    this.code = code;
+  }
 }
 
 export function createApiDependencies(config: CloudConfig = loadConfig()): ApiDependencies {
@@ -159,7 +183,128 @@ export async function handleApiRequest(
     sendJson(res, 200, { disconnected: true, revoked });
     return;
   }
+  if (req.method === "GET" && path === "/api/github/repositories") {
+    try {
+      const { token } = requireGithubAccess(auth.userId, deps);
+      const repositories = await deps.githubService.listRepositories(token);
+      sendJson(res, 200, { repositories: repositories.map(repositoryDto) });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
+  if (req.method === "POST" && path === "/api/github/repositories") {
+    try {
+      const { token, login } = requireGithubAccess(auth.userId, deps);
+      const body = await readJson(req);
+      const name = String(body?.name || "");
+      const description = String(body?.description || "");
+      if (!/^[A-Za-z0-9_.-]{1,100}$/.test(name) || name.startsWith(".") || name.startsWith("-") || description.length > 200) {
+        throw new ApiRequestError(400, "invalid_request");
+      }
+      if (await deps.githubService.repositoryExists(token, login, name)) {
+        throw new ApiRequestError(409, "repository_exists");
+      }
+      const repository = await deps.githubService.createRepository(token, { name, description });
+      const now = Date.now();
+      const projectId = randomUUID();
+      saveProject({
+        id: projectId,
+        userId: auth.userId,
+        repoId: repository.id,
+        repoFullName: repository.fullName,
+        repoOwner: repository.owner,
+        repoName: repository.name,
+        defaultBranch: repository.defaultBranch,
+        htmlUrl: repository.htmlUrl,
+        now,
+      });
+      selectProject(auth.userId, projectId, now);
+      sendJson(res, 201, { repository: repositoryDto(repository), project: projectDto(findProjectByRepo(auth.userId, repository.fullName)) });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
+  if (req.method === "GET" && path === "/api/github/selection") {
+    try {
+      requireGithubAccess(auth.userId, deps);
+      sendJson(res, 200, { project: projectDto(findSelectedProject(auth.userId)) });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
+  if (req.method === "PUT" && path === "/api/github/selection") {
+    try {
+      requireGithubAccess(auth.userId, deps);
+      const body = await readJson(req);
+      const repoFullName = String(body?.repoFullName || "");
+      if (!/^[^\s/]+\/[^\s/]+$/.test(repoFullName)) throw new ApiRequestError(400, "invalid_request");
+      const project = findProjectByRepo(auth.userId, repoFullName);
+      if (!project) throw new ApiRequestError(404, "project_not_found");
+      selectProject(auth.userId, String(project.id), Date.now());
+      sendJson(res, 200, { project: projectDto(findSelectedProject(auth.userId)) });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
   sendJson(res, 404, { error: "not_found" });
+}
+
+function requireGithubAccess(userId: string, deps: ApiDependencies): { token: string; login: string } {
+  if (!isGithubConfigured(deps.githubConfig)) throw new ApiRequestError(503, "github_not_configured");
+  const connection = findGithubConnection(userId);
+  if (!connection) throw new ApiRequestError(409, "github_not_connected");
+  const token = decryptToken({
+    ciphertext: String(connection.ciphertext),
+    iv: String(connection.iv),
+    tag: String(connection.tag),
+  }, deps.githubConfig.tokenEncryptionKey!);
+  return { token, login: String(connection.login) };
+}
+
+function sendGithubError(res: ServerResponse, error: unknown): void {
+  if (error instanceof ApiRequestError) {
+    sendJson(res, error.status, { error: error.code });
+    return;
+  }
+  const code = (error as any)?.code;
+  if (typeof code === "string" && code.startsWith("github_")) {
+    sendJson(res, 400, { error: "github_request_failed", providerCode: code });
+    return;
+  }
+  if (typeof code === "string" && code.startsWith("repository_")) {
+    sendJson(res, 400, { error: "github_request_failed", providerCode: code });
+    return;
+  }
+  throw error;
+}
+
+function repositoryDto(repository: any): Record<string, unknown> {
+  return {
+    id: Number(repository.id),
+    fullName: String(repository.fullName),
+    name: String(repository.name),
+    owner: String(repository.owner),
+    isPrivate: Boolean(repository.isPrivate),
+    defaultBranch: String(repository.defaultBranch),
+    htmlUrl: String(repository.htmlUrl),
+  };
+}
+
+function projectDto(project: any | undefined): Record<string, unknown> | null {
+  if (!project) return null;
+  return {
+    id: String(project.id),
+    repoId: Number(project.repoId),
+    repoFullName: String(project.repoFullName),
+    repoOwner: String(project.repoOwner),
+    repoName: String(project.repoName),
+    defaultBranch: String(project.defaultBranch),
+    htmlUrl: String(project.htmlUrl),
+  };
 }
 
 function handleGithubCallback(url: URL, res: ServerResponse, deps: ApiDependencies): void {

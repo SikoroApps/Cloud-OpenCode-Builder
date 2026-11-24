@@ -53,6 +53,37 @@ test("GitHub configuration requires credentials, HTTPS redirect and a 32-byte ke
   assert.equal(isGithubConfigured(config({ tokenEncryptionKey: null })), false);
 });
 
+test("repository listing and creation use the public-repository contract", async () => {
+  const repositoryPayload = {
+    id: 7,
+    full_name: "octocat/hello-app",
+    name: "hello-app",
+    owner: { login: "octocat" },
+    private: false,
+    default_branch: "main",
+    html_url: "https://github.com/octocat/hello-app",
+  };
+  let createBody = "";
+  const service = createGithubService(config(), (async (input: any, init: any) => {
+    const url = String(input);
+    if (url.endsWith("/user/repos") && init?.method === "POST") {
+      createBody = String(init.body);
+      return new Response(JSON.stringify(repositoryPayload), { status: 201, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response(JSON.stringify([repositoryPayload]), { status: 200, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch);
+  const repositories = await service.listRepositories("token");
+  assert.equal(repositories.length, 1);
+  assert.equal(repositories[0].fullName, "octocat/hello-app");
+  assert.equal(repositories[0].isPrivate, false);
+
+  const created = await service.createRepository("token", { name: "hello-app", description: "test" });
+  assert.equal(created.id, 7);
+  const body = JSON.parse(createBody);
+  assert.equal(body.private, false);
+  assert.equal(body.auto_init, true);
+});
+
 test("OAuth code exchange succeeds and never echoes provider errors with token material", async () => {
   const service = createGithubService(config(), (async (input: any, init: any) => {
     assert.equal(String(input), "https://github.com/login/oauth/access_token");

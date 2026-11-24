@@ -44,7 +44,7 @@ Exit criteria:
 - CI green; Phase 2 tests remain green.
 - Exact external setup documented without inventing credentials.
 
-## Batch 3.2 — Repository management (BLOCKED BY 3.1)
+## Batch 3.2 — Repository management (IMPLEMENTED, LIVE BLOCKED BY 3.1 CREDENTIALS)
 
 - List accessible repositories through the backend using the stored token.
 - Select a repository and create a new public repository for each new app project.

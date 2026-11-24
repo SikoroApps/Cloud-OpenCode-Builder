@@ -52,6 +52,26 @@ data class GithubDisconnectResult(
     val revoked: Boolean,
 )
 
+data class GithubRepository(
+    val id: Long,
+    val fullName: String,
+    val name: String,
+    val owner: String,
+    val isPrivate: Boolean,
+    val defaultBranch: String,
+    val htmlUrl: String,
+)
+
+data class GithubProject(
+    val id: String,
+    val repoId: Long,
+    val repoFullName: String,
+    val repoOwner: String,
+    val repoName: String,
+    val defaultBranch: String,
+    val htmlUrl: String,
+)
+
 sealed class CloudApiError(message: String) : Exception(message) {
     data class Http(val code: Int, val errorMessage: String) : CloudApiError(errorMessage)
     data class Network(val errorMessage: String) : CloudApiError(errorMessage)

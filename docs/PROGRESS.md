@@ -115,9 +115,18 @@ without rewriting Phase 2.
 - Exact credentials/setup needed are documented in `docs/PHASE_3.md`. No credentials were invented
   or committed.
 
+### Batch 3.2 evidence
+
+- Backend repository list/create and explicit project selection implemented; creation always makes a
+  new public repository and rejects existing names with `409 repository_exists`.
+- `cd cloud && npm test`: **15 passed, 0 failures** (8 Phase 2 + 7 Phase 3 tests).
+- Android client gained repository/create/selection methods; HTTPS integration checks unconfigured
+  repository endpoints fail safely.
+- First Phase 3 Android CI run `45352049122` failed only because a Cloudflare quick-tunnel hostname
+  was not DNS-reachable; the workflow now retries with a fresh tunnel.
+
 ### Blocked
 
-- No GitHub OAuth App client ID/secret or callback domain was provided, so live connect/disconnect
-  cannot be tested.
-- Repository management, commits, Actions orchestration and APK delivery remain dependency-blocked
-  behind live 3.1 configuration.
+- No GitHub OAuth App client ID/secret or callback domain was provided, so live OAuth,
+  connect/disconnect and repository operations cannot be tested.
+- Commits, Actions orchestration and APK delivery remain next in dependency order.

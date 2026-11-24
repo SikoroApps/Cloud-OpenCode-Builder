@@ -22,6 +22,10 @@ interface CloudApiClient {
     fun githubOAuthStart(token: String): Result<GithubOAuthStart>
     fun githubStatus(token: String): Result<GithubStatus>
     fun githubDisconnect(token: String): Result<GithubDisconnectResult>
+    fun githubRepositories(token: String): Result<List<GithubRepository>>
+    fun createGithubRepository(token: String, name: String, description: String): Result<GithubRepository>
+    fun selectGithubProject(token: String, repoFullName: String): Result<GithubProject>
+    fun selectedGithubProject(token: String): Result<GithubProject?>
 }
 
 class CloudApiClientImpl(
@@ -140,6 +144,56 @@ class CloudApiClientImpl(
             revoked = response.optBoolean("revoked"),
         )
     }
+
+    override fun githubRepositories(token: String): Result<List<GithubRepository>> = runCatching {
+        val response = request("GET", "/api/github/repositories", token, null)
+        val array = response.optJSONArray("repositories") ?: throw CloudApiError.Network("repository list failed")
+        val repositories = ArrayList<GithubRepository>()
+        for (index in 0 until array.length()) {
+            val item = array.optJSONObject(index) ?: continue
+            repositories.add(repositoryFromJson(item))
+        }
+        repositories
+    }
+
+    override fun createGithubRepository(token: String, name: String, description: String): Result<GithubRepository> = runCatching {
+        val body = JSONObject().put("name", name).put("description", description)
+        val response = request("POST", "/api/github/repositories", token, body)
+        response.optJSONObject("repository")?.let(::repositoryFromJson)
+            ?: throw CloudApiError.Network("repository creation failed")
+    }
+
+    override fun selectGithubProject(token: String, repoFullName: String): Result<GithubProject> = runCatching {
+        val body = JSONObject().put("repoFullName", repoFullName)
+        val response = request("PUT", "/api/github/selection", token, body)
+        response.optJSONObject("project")?.let(::projectFromJson)
+            ?: throw CloudApiError.Network("project selection failed")
+    }
+
+    override fun selectedGithubProject(token: String): Result<GithubProject?> = runCatching {
+        val response = request("GET", "/api/github/selection", token, null)
+        if (response.isNull("project")) null else response.optJSONObject("project")?.let(::projectFromJson)
+    }
+
+    private fun repositoryFromJson(json: JSONObject): GithubRepository = GithubRepository(
+        id = json.optLong("id"),
+        fullName = json.optString("fullName"),
+        name = json.optString("name"),
+        owner = json.optString("owner"),
+        isPrivate = json.optBoolean("isPrivate"),
+        defaultBranch = json.optString("defaultBranch"),
+        htmlUrl = json.optString("htmlUrl"),
+    )
+
+    private fun projectFromJson(json: JSONObject): GithubProject = GithubProject(
+        id = json.optString("id"),
+        repoId = json.optLong("repoId"),
+        repoFullName = json.optString("repoFullName"),
+        repoOwner = json.optString("repoOwner"),
+        repoName = json.optString("repoName"),
+        defaultBranch = json.optString("defaultBranch"),
+        htmlUrl = json.optString("htmlUrl"),
+    )
 
     private fun messageFromJson(json: JSONObject): ChatMessageDto = ChatMessageDto(
         id = json.optLong("id"),

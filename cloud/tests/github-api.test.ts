@@ -27,6 +27,15 @@ function githubConfig(configured = true): GithubConfig {
 }
 
 function mockService(): GithubService {
+  const repositories = [{
+    id: 1,
+    fullName: "octocat/existing-app",
+    name: "existing-app",
+    owner: "octocat",
+    isPrivate: false,
+    defaultBranch: "main",
+    htmlUrl: "https://github.com/octocat/existing-app",
+  }];
   return {
     authorizationUrl(state: string) {
       return `https://github.com/login/oauth/authorize?state=${encodeURIComponent(state)}`;
@@ -39,6 +48,25 @@ function mockService(): GithubService {
     },
     async revokeToken() {
       return true;
+    },
+    async listRepositories() {
+      return [...repositories];
+    },
+    async repositoryExists(_token: string, owner: string, name: string) {
+      return repositories.some((repo) => repo.owner === owner && repo.name === name);
+    },
+    async createRepository(_token: string, input: { name: string; description: string }) {
+      const repo = {
+        id: repositories.length + 1,
+        fullName: `octocat/${input.name}`,
+        name: input.name,
+        owner: "octocat",
+        isPrivate: false,
+        defaultBranch: "main",
+        htmlUrl: `https://github.com/octocat/${input.name}`,
+      };
+      repositories.push(repo);
+      return repo;
     },
   };
 }
@@ -88,6 +116,44 @@ test("GitHub OAuth connect, status and disconnect never expose the token", async
     assert.equal(status.connected, true);
     assert.equal(status.login, "octocat");
     assert.equal(JSON.stringify(status).includes("gh-token-do-not-expose"), false);
+
+    response = await fetch(`${server.baseUrl}/api/github/repositories`, { headers: auth });
+    assert.equal(response.status, 200);
+    const repositories = ((await response.json()) as any).repositories as any[];
+    assert.equal(repositories.length, 1);
+    assert.equal(repositories[0].fullName, "octocat/existing-app");
+    assert.equal(JSON.stringify(repositories).includes("gh-token-do-not-expose"), false);
+
+    response = await fetch(`${server.baseUrl}/api/github/repositories`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "new-app", description: "created by Cloud OpenCode" }),
+    });
+    assert.equal(response.status, 201);
+    const created = (await response.json()) as any;
+    assert.equal(created.repository.fullName, "octocat/new-app");
+    assert.equal(created.repository.isPrivate, false);
+    assert.equal(created.project.repoFullName, "octocat/new-app");
+
+    response = await fetch(`${server.baseUrl}/api/github/repositories`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "new-app" }),
+    });
+    assert.equal(response.status, 409);
+    assert.equal(((await response.json()) as any).error, "repository_exists");
+
+    response = await fetch(`${server.baseUrl}/api/github/selection`, {
+      method: "PUT",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ repoFullName: "octocat/new-app" }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal(((await response.json()) as any).project.repoFullName, "octocat/new-app");
+
+    response = await fetch(`${server.baseUrl}/api/github/selection`, { headers: auth });
+    assert.equal(response.status, 200);
+    assert.equal(((await response.json()) as any).project.repoFullName, "octocat/new-app");
 
     response = await fetch(`${server.baseUrl}/api/github/oauth/callback?code=abc&state=${state}`, { redirect: "manual" });
     assert.equal(new URL(response.headers.get("location") || "").searchParams.get("error"), "invalid_state");

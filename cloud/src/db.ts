@@ -52,6 +52,24 @@ export function getDb(path: string): DatabaseSync {
       connected_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      repo_id INTEGER NOT NULL,
+      repo_full_name TEXT NOT NULL,
+      repo_owner TEXT NOT NULL,
+      repo_name TEXT NOT NULL,
+      default_branch TEXT NOT NULL,
+      html_url TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      UNIQUE(user_id, repo_full_name)
+    );
+    CREATE TABLE IF NOT EXISTS project_selections (
+      user_id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      selected_at INTEGER NOT NULL
+    );
   `);
   return db;
 }
@@ -200,4 +218,80 @@ export function deleteGithubConnection(userId: string): any | undefined {
     .prepare("DELETE FROM github_connections WHERE user_id = ?")
     .run(userId);
   return existing;
+}
+
+export function saveProject(input: {
+  id: string;
+  userId: string;
+  repoId: number;
+  repoFullName: string;
+  repoOwner: string;
+  repoName: string;
+  defaultBranch: string;
+  htmlUrl: string;
+  now: number;
+}): void {
+  getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite").prepare(
+    `INSERT INTO projects
+      (id, user_id, repo_id, repo_full_name, repo_owner, repo_name, default_branch, html_url, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(user_id, repo_full_name) DO UPDATE SET
+      repo_id = excluded.repo_id,
+      repo_owner = excluded.repo_owner,
+      repo_name = excluded.repo_name,
+      default_branch = excluded.default_branch,
+      html_url = excluded.html_url,
+      updated_at = excluded.updated_at`,
+  ).run(
+    input.id,
+    input.userId,
+    input.repoId,
+    input.repoFullName,
+    input.repoOwner,
+    input.repoName,
+    input.defaultBranch,
+    input.htmlUrl,
+    input.now,
+    input.now,
+  );
+}
+
+export function findProjectByRepo(userId: string, repoFullName: string): any | undefined {
+  return getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare(
+      `SELECT id, repo_id AS repoId, repo_full_name AS repoFullName, repo_owner AS repoOwner,
+              repo_name AS repoName, default_branch AS defaultBranch, html_url AS htmlUrl,
+              created_at AS createdAt, updated_at AS updatedAt
+       FROM projects WHERE user_id = ? AND repo_full_name = ?`,
+    )
+    .get(userId, repoFullName) as any;
+}
+
+export function selectProject(userId: string, projectId: string, now: number): void {
+  getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite").prepare(
+    `INSERT INTO project_selections (user_id, project_id, selected_at) VALUES (?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET project_id = excluded.project_id, selected_at = excluded.selected_at`,
+  ).run(userId, projectId, now);
+}
+
+export function findSelectedProject(userId: string): any | undefined {
+  return getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare(
+      `SELECT p.id, p.repo_id AS repoId, p.repo_full_name AS repoFullName, p.repo_owner AS repoOwner,
+              p.repo_name AS repoName, p.default_branch AS defaultBranch, p.html_url AS htmlUrl,
+              s.selected_at AS selectedAt
+       FROM project_selections s JOIN projects p ON p.id = s.project_id WHERE s.user_id = ?`,
+    )
+    .get(userId) as any;
+}
+
+export function listProjects(userId: string): any[] {
+  return getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare(
+      `SELECT id, repo_id AS repoId, repo_full_name AS repoFullName, repo_owner AS repoOwner,
+              repo_name AS repoName, default_branch AS defaultBranch, html_url AS htmlUrl,
+              created_at AS createdAt, updated_at AS updatedAt
+       FROM projects WHERE user_id = ? ORDER BY updated_at DESC`,
+    )
+    .all(userId) as any[];
 }
