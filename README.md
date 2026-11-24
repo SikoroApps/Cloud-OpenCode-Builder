@@ -106,4 +106,6 @@ from deployment readiness (5.1) through GitHub OAuth, repository connection, rea
 orchestration, signed APK delivery and physical-device verification (5.6). The container deployment
 contract and masked preflight checks are in `docs/DEPLOYMENT.md`; per-batch evidence is in
 `docs/PHASE_5.md`. Work that requires external credentials, browser consent, signing secrets or a
-physical device is implemented around the dependency and recorded as blocked, never fabricated.
+physical device is implemented around the dependency and recorded as blocked, never fabricated. See
+`docs/DEPLOYMENT.md` for the deployment contract and `docs/DEVICE_TESTING.md` for physical-device
+evidence. No live OAuth, signed APK or device claim is made without actual evidence.

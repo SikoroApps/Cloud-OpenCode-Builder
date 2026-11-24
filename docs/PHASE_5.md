@@ -13,7 +13,7 @@ physical-device claim is made unless actual evidence is recorded here.
 | 5.3 | GitHub repository connection | IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED |
 | 5.4 | Real GitHub Actions orchestration | IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED |
 | 5.5 | Signed APK delivery | IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED |
-| 5.6 | Real-device verification | NOT STARTED |
+| 5.6 | Real-device verification | TOOLING IMPLEMENTED; PHYSICAL DEVICE BLOCKED |
 
 ## Batch 5.1 — Deployment readiness
 
@@ -144,4 +144,36 @@ live evidence.
 
 ## Batch 5.6 — Real-device verification
 
-Not started.
+### Implemented
+
+- `scripts/verify-device.mjs` verifies an existing APK on a non-emulator `adb` device. It rejects
+  emulators, missing/unauthorized devices and failed install/launch; `status: verified` requires
+  `adb install -r`, `pm path` and a launcher launch to succeed and includes device serial, package,
+  APK SHA-256 and timestamp.
+- `docs/DEVICE_TESTING.md` records the exact procedure and evidence format. No local Android build
+  is performed; the APK must come from a successful GitHub Actions run.
+
+### Verified
+
+- `cd cloud && npm test`: **60 passed, 0 failures** (57 prior + 3 device-tooling tests, using a
+  simulated `adb` binary and clearly labeled as simulation, not device evidence).
+- Running the checker in this environment with a temporary APK returned:
+  `{"status":"blocked","reason":"adb_unavailable"}` with exit code `2`.
+
+### Blocked
+
+No `adb`, physical Android device or real signed APK is available here. Physical-device installation
+and launch are **not** verified. Emulator smoke tests in Android CI are not physical-device evidence.
+
+## Phase 5 result
+
+- Automated-test verified: 60 backend tests, masked deployment/config checks and both CI workflows
+  on the final Phase 5 commit (see `docs/PROGRESS.md` for run IDs).
+- Live-service verified: none. No OAuth consent, deployed backend, real repository commit,
+  application-dispatched Actions run or live APK artifact was observed.
+- APK verified: none. No real signed APK, download link or checksum exists in this environment; only
+  controlled evidence-parser and mocked-provider tests were executed.
+- Physical-device verified: none. The device checker reports `adb_unavailable`.
+- Outstanding external requirements: permanent HTTPS deployment, GitHub OAuth App and browser
+  consent, an AI provider key, protected Android signing secrets, a real successful GitHub Actions
+  release run, and a connected physical Android device.

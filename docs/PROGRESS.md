@@ -269,3 +269,13 @@ Started from the unchanged Phase 4 checkpoint `d136bda`. Detailed per-batch evid
   and missing evidence artifact.
 - No real signed APK, download link or device-installable artifact exists here; signing secrets and
   a live release run remain external blockers.
+
+### Batch 5.6 evidence
+
+- Added `scripts/verify-device.mjs` and `docs/DEVICE_TESTING.md`. The checker requires a physical
+  non-emulator device and verified install, package path and launcher launch before reporting
+  `status: verified`.
+- `cd cloud && npm test`: **60 passed, 0 failures** (3 added tests use a simulated `adb` and are not
+  physical-device evidence).
+- Running the checker here returned `{"status":"blocked","reason":"adb_unavailable"}` (exit `2`), so
+  physical-device verification remains incomplete.
