@@ -62,13 +62,17 @@ Cloud AI Engine phase, and `docs/PROGRESS.md` for detailed evidence.
 
 ## Phase 2 status
 
-The deployable cloud backend, five-model fallback engine, SQLite chat persistence and HTTPS-only
-Android client are implemented under `cloud/` and `android/`. Backend tests and container build are
-green (`Cloud Backend CI` `45345888090`); Android unit/lint/emulator/APK checks were green on
-`ba749e8` (`Android CI` `45345330348`). Real provider probes returned `MODELTEST` from
-`opencode/big-pickle`, `opencode/deepseek-v4.1-flash-free` and `opencode/flint-40b-free`; OpenRouter
-free models returned real upstream `429` rate-limit responses.
+Phase 2 implementation and verification are **complete** on commit `9ccee3d`:
 
-Final HTTPS integration CI is being verified in `Android CI` `45345888322`. Permanent hosting, a TLS
-domain and backend `OPENROUTER_API_KEY` secret are external dependencies, so Phase 2 is not yet
-complete. See `docs/PHASE_2.md` and `docs/PROGRESS.md` for full evidence and blockers.
+- `Cloud Backend CI` `45347166634`: **success** (8 tests, health smoke, container build).
+- `Android CI` `45347166635`: **success** (unit tests, backend core tests, lint, API 35 emulator,
+  APK/secret scan and an HTTPS backend integration test with 1 passed, 0 skipped).
+- Real provider probes returned `MODELTEST` from `opencode/big-pickle`,
+  `opencode/deepseek-v4.1-flash-free` and `opencode/flint-40b-free`; OpenRouter free models returned
+  real upstream `429` rate-limit responses.
+- SQLite chat history persists across backend restarts; the five-model fallback order and automatic
+  switching are covered by controlled tests.
+
+Permanent production hosting, a TLS domain and backend `OPENROUTER_API_KEY` secret are external
+follow-on dependencies; HTTPS was verified through a temporary tunnel, not a deployed domain. See
+`docs/PHASE_2.md` and `docs/PROGRESS.md` for full evidence and blockers.

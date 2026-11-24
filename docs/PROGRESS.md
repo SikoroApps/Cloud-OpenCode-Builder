@@ -42,8 +42,8 @@ Status: **COMPLETE** with CI evidence.
 
 ## Phase 2 — Cloud AI Engine
 
-Status: **IN PROGRESS** — local implementation complete; final HTTPS integration CI, permanent
-deployment and provider credentials remain.
+Status: **IMPLEMENTATION AND VERIFICATION COMPLETE** on commit `9ccee3d`; permanent production
+deployment and provider secrets are external follow-on dependencies.
 
 ### Implemented
 
@@ -69,6 +69,9 @@ deployment and provider credentials remain.
   temporary-rate-limit responses; no successful live OpenRouter response was observed.
 - Fallback tests are controlled/simulated and assert exact order, eligible errors, automatic
   switching, non-eligible stop and exhaustion. They are not live availability claims.
+- Android HTTPS integration test passed in a real API 35 emulator against a Cloudflare quick HTTPS
+  tunnel to the backend: **1 test, 0 failures, 0 skipped**; it covered health, register, chat,
+  history and logout over HTTPS.
 
 ### CI evidence (2026-11-24)
 
@@ -80,13 +83,18 @@ deployment and provider credentials remain.
 - `Android CI` `45345330348` on `ba749e8`: **success** (unit tests, backend tests, lint, emulator
   smoke, APK and secret scan).
 - `Cloud Backend CI` `45345888090` on `d5bb65d`: **success**.
-- `Android CI` `45345888322` on `d5bb65d`: final HTTPS integration verification in progress.
+- `Android CI` `45345888322` on `d5bb65d`: **failure** (unsupported `--tests` option on
+  `connectedDebugAndroidTest`; fixed).
+- `Android CI` `45346466679` on `80b4c4b`: **failure** (bodyless POST logout; fixed).
+- `Cloud Backend CI` `45347166634` on final commit `9ccee3d`: **success**.
+- `Android CI` `45347166635` on final commit `9ccee3d`: **success** (all three jobs, including
+  HTTPS integration).
 
-### Remaining blockers
+### Remaining external blockers / follow-on work
 
-- Permanent cloud hosting, HTTPS domain and TLS configuration were not provided.
+- Permanent cloud hosting, HTTPS domain and TLS configuration were not provided. HTTPS evidence uses
+  an accountless temporary tunnel, not a production deployment.
 - `OPENROUTER_API_KEY` is not configured as a backend secret; OpenRouter free models were rate-limited
   upstream during direct probes.
 - OpenCode free quotas can be exhausted; no availability is assumed without a fresh probe.
 - No separate Supabase project/credentials exist; the Messenger Pro project must not be reused.
-- Phase 2 remains incomplete until the final HTTPS integration CI run is green.

@@ -1,8 +1,7 @@
 # Phase 2 — Cloud AI Engine
 
-Status: **IN PROGRESS** — backend, fallback engine, persistence, container build and Android HTTPS
-client are implemented. Final CI evidence and permanent cloud deployment are being verified;
-deployment credentials/domain are external dependencies.
+Status: **IMPLEMENTATION AND VERIFICATION COMPLETE** on commit `9ccee3d`. Production hosting,
+a permanent TLS domain and backend provider secrets remain external follow-on work.
 
 ## Implemented
 
@@ -24,22 +23,28 @@ deployment credentials/domain are external dependencies.
   - Build-time public endpoint configuration via `CLOUD_BASE_URL` / `CLOUD_HOST_ALLOWLIST`
     environment variables; no secret is embedded in the app.
 
-## CI history
+## Final CI evidence
 
-- `Cloud Backend CI` `45340096468` on `94470f6`: **success** (7 backend tests + health smoke).
-- `Android CI` `45340096492` on `94470f6`: **failure** (new Phase 2 Android code did not compile).
-- `Cloud Backend CI` `45344526350` on `48d98d8`: **success**.
-- `Android CI` `45344526434` on `48d98d8`: **failure** (remaining OkHttp/Keystore/data-class errors).
-- `Cloud Backend CI` `45345330402` on `ba749e8`: **success** (8 tests, health smoke, container build).
-- `Android CI` `45345330348` on `ba749e8`: **success** (unit tests, backend core tests, lint,
-  emulator smoke test, debug APK assembly and secret-marker scan).
-- `Cloud Backend CI` `45345888090` on `d5bb65d`: **success**.
-- `Android CI` `45345888322` on `d5bb65d`: final HTTPS-integration run in progress at the time of
-  this document update.
+- `Cloud Backend CI` run `45347166634` on final commit `9ccee3d`: **success**
+  (8 backend tests, health smoke, container image build).
+- `Android CI` run `45347166635` on final commit `9ccee3d`: **success** (all three jobs):
+  - `verify`: unit tests, backend core tests, Android lint, debug APK assembly, package-name check
+    and secret-marker scan.
+  - `Emulator app-launch smoke test`: API 35 launch smoke passed.
+  - `Android HTTPS backend integration`: a Cloudflare quick HTTPS tunnel exposed the local backend;
+    the emulator test `clientCommunicatesWithBackendOverHttps` passed with **1 test, 0 failures,
+    0 skipped**. It exercised health, register, chat, history and logout entirely over `https://`.
 
-The earlier compile failures were fixed by adding the generated `BuildConfig` import, using OkHttp 4
-extension APIs, correcting the `CloudApiError` data classes, and rewriting Android Keystore AES-GCM
-usage with valid `KeyGenParameterSpec`/`GCMParameterSpec` calls.
+Earlier CI failures were fixed before the final run:
+
+- `45340096492`: initial Phase 2 Android compile errors (fixed).
+- `45344526434`: remaining OkHttp/Keystore/data-class compile errors (fixed).
+- `45345888322`: HTTPS job used unsupported `--tests` on `connectedDebugAndroidTest` (fixed with
+  `-Pandroid.testInstrumentationRunnerArguments.class=...`).
+- `45346466679`: HTTPS test failed on bodyless POST logout (fixed by sending an empty JSON body).
+
+Successful intermediate runs: `45345330348` (Android) and `45345330402` (Cloud Backend) on
+`ba749e8`, plus `45345888090` (Cloud Backend) on `d5bb65d`.
 
 ## Verified locally and in CI
 
@@ -48,9 +53,8 @@ usage with valid `KeyGenParameterSpec`/`GCMParameterSpec` calls.
 - Backend smoke test: `GET /health` -> `200 {"status":"ok"}`; register -> `201`; login -> `200`;
   `GET /api/auth/me` -> `200`; `GET /api/chat/history` -> `200 {"history":[]}`; `POST /api/chat`
   persisted the user turn and reported `ai_fallback_exhausted` when real providers were unavailable.
-- Container builds successfully in GitHub Actions (`docker build -t cloud-opencode-backend:ci .`).
-- Android unit tests, lint, API 35 emulator smoke test, debug APK assembly and secret-marker scan are
-  green in `Android CI` `45345330348`.
+- Container builds successfully in CI (`docker build -t cloud-opencode-backend:ci .`).
+- Android HTTPS integration passed in a real API 35 emulator against an HTTPS URL.
 
 ## Real provider evidence
 
@@ -69,9 +73,9 @@ backend adapter:
 evidence. The stubbed API persistence test and controlled fallback tests are explicitly simulated
 integration coverage, not live verification of every provider.
 
-## Completion criteria status
+## Completion criteria
 
-- Cloud service runnable: **yes** locally and as a container image; no permanent hosted deployment.
+- Cloud service runnable: **yes** locally and as a container image.
 - At least one real AI provider response: **yes** (three OpenCode models returned `MODELTEST`).
 - Five-model fallback logic tested: **yes**, controlled tests assert exact order and exhaustion.
 - Automatic switching demonstrated: **yes**, controlled integration tests plus a real `429`
@@ -79,16 +83,16 @@ integration coverage, not live verification of every provider.
   models were rate-limited and no backend `OPENROUTER_API_KEY` secret is configured.
 - Chat history persists: **yes**, SQLite-backed and verified through the API across a server
   restart with stubbed AI.
-- Android communicates with backend over HTTPS: client enforcement and integration test are
-  implemented; final CI evidence pending in run `45345888322`. Permanent deployment still absent.
+- Android communicates with backend over HTTPS: **yes**, verified in an API 35 emulator against an
+  HTTPS tunnel, with 1 passed test and 0 skipped.
+- CI green on final commit: **yes** (`45347166635` and `45347166634` on `9ccee3d`).
+- Docs with evidence and blockers: **yes** (this file, `docs/PROGRESS.md` and `README.md`).
 
-## Remaining blockers
+## Remaining external blockers / follow-on work
 
-- No hosting account, domain or TLS certificate was provided for a permanent cloud deployment.
+- No permanent hosting account, domain or TLS certificate was provided. The HTTPS evidence uses an
+  accountless temporary tunnel, not a production deployment.
 - `OPENROUTER_API_KEY` is not configured as a backend deployment secret; direct OpenRouter free-model
   probes were rate-limited upstream.
 - OpenCode free quotas can be exhausted and should not be assumed available without a fresh probe.
-- No separate Supabase project/credentials exist for this backend; the Messenger Pro project must not
-  be reused.
-- Phase 2 is not complete until the final HTTPS integration CI run is green and any remaining
-  criteria have evidence.
+- No separate Supabase project/credentials exist; the Messenger Pro project must not be reused.
