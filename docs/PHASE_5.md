@@ -9,7 +9,7 @@ physical-device claim is made unless actual evidence is recorded here.
 | Batch | Scope | Status |
 | --- | --- | --- |
 | 5.1 | Deployment readiness | IN PROGRESS |
-| 5.2 | GitHub OAuth | NOT STARTED |
+| 5.2 | GitHub OAuth | IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED |
 | 5.3 | GitHub repository connection | NOT STARTED |
 | 5.4 | Real GitHub Actions orchestration | NOT STARTED |
 | 5.5 | Signed APK delivery | NOT STARTED |
@@ -54,7 +54,24 @@ invented. The checker reports them as blockers without printing values.
 
 ## Batch 5.2 — GitHub OAuth
 
-Not started.
+### Implemented and verified
+
+- Existing server-side OAuth start/callback/status/disconnect flow is preserved. Tokens are exchanged
+  server-side, encrypted with AES-256-GCM and never returned to Android, logged or committed.
+- Added controlled tests in `cloud/tests/phase5-oauth.test.ts` proving:
+  - OAuth state is single-use and replayed callbacks are rejected;
+  - expired state is rejected before token exchange;
+  - denied and malformed callbacks redirect with safe error codes;
+  - unconfigured OAuth returns `github_not_configured` without creating credentials.
+- `cd cloud && npm test`: **44 passed, 0 failures** (40 prior + 4 new OAuth tests).
+- `cd cloud && npm run typecheck`: passed.
+- Setup instructions are in `docs/GITHUB_OAUTH_SETUP.md`; no CLI token is substituted for consent.
+
+### Blocked
+
+No GitHub OAuth App, HTTPS callback domain, client ID/secret or encryption key is configured in this
+environment, and no browser authorization can be performed by this harness. `connected: true` has
+not been observed against a live backend, so live OAuth is **not** verified.
 
 ## Batch 5.3 — GitHub repository connection
 

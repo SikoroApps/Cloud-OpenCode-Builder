@@ -236,3 +236,10 @@ Started from the unchanged Phase 4 checkpoint `d136bda`. Detailed per-batch evid
   and `npm run check:deployment` all passed.
 - Current environment has no live deployment, HTTPS domain, OAuth values, AI key or health URL;
   the checker reports these as blockers without printing values.
+
+### Batch 5.2 evidence
+
+- Preserved the encrypted server-side OAuth flow and added tests for single-use state, expired state,
+  denied/malformed callbacks and safe `github_not_configured` behavior.
+- `cd cloud && npm test`: **44 passed, 0 failures**; `npm run typecheck`: passed.
+- No browser authorization or live OAuth App exists here; live OAuth remains unverified.
