@@ -101,8 +101,8 @@ deployment and provider secrets are external follow-on dependencies.
 
 ## Phase 3 — GitHub Integration & Cloud Android Builds
 
-Status: **BATCH 3.1 IMPLEMENTED, LIVE VERIFICATION BLOCKED**; started from Phase 2 HEAD `09c4d94`
-without rewriting Phase 2.
+Status: **BATCHES 3.1–3.3 IMPLEMENTED, LIVE VERIFICATION BLOCKED**; started from Phase 2 HEAD
+`09c4d94` without rewriting Phase 2.
 
 ### Batch 3.1 evidence
 
@@ -124,9 +124,22 @@ without rewriting Phase 2.
   repository endpoints fail safely.
 - First Phase 3 Android CI run `45352049122` failed only because a Cloudflare quick-tunnel hostname
   was not DNS-reachable; the workflow now retries with a fresh tunnel.
+- CI on commit `2ea1dd8`: `Cloud Backend CI` `45353275993` **success** and `Android CI`
+  `45353276135` **success**, including the HTTPS integration test.
+
+### Batch 3.3 evidence
+
+- Backend project file inspect/save, AI-assisted file editing and GitHub commit endpoints implemented
+  with path/content validation and encrypted-token-only server-side access.
+- `cd cloud && npm test`: **21 passed, 0 failures** (8 Phase 2 + 13 Phase 3 tests).
+- Tests cover AI plan safety, GitHub Contents API shape, commit success, `no_changes`, and accurate
+  failed-commit error status; no token appears in API responses.
+- Android client gained file/edit/commit methods; HTTPS integration checks those endpoints fail
+  safely without GitHub configuration. CI evidence for this batch is pending the commit push.
 
 ### Blocked
 
 - No GitHub OAuth App client ID/secret or callback domain was provided, so live OAuth,
-  connect/disconnect and repository operations cannot be tested.
-- Commits, Actions orchestration and APK delivery remain next in dependency order.
+  connect/disconnect, repository operations and commits cannot be tested.
+- Actions orchestration, APK delivery and signed release preparation remain next in dependency
+  order.

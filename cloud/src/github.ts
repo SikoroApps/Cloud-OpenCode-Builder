@@ -23,6 +23,17 @@ export interface GithubRepository {
   htmlUrl: string;
 }
 
+export interface GithubFile {
+  path: string;
+  sha: string | null;
+  content: string;
+}
+
+export interface GithubCommitResult {
+  sha: string;
+  htmlUrl: string;
+}
+
 export interface GithubService {
   authorizationUrl(state: string): string;
   exchangeCode(code: string): Promise<GithubTokenExchange>;
@@ -31,6 +42,16 @@ export interface GithubService {
   listRepositories(accessToken: string): Promise<GithubRepository[]>;
   repositoryExists(accessToken: string, owner: string, name: string): Promise<boolean>;
   createRepository(accessToken: string, input: { name: string; description: string }): Promise<GithubRepository>;
+  getFile(accessToken: string, input: { owner: string; repo: string; path: string; branch: string }): Promise<GithubFile | null>;
+  upsertFile(accessToken: string, input: {
+    owner: string;
+    repo: string;
+    path: string;
+    content: string;
+    message: string;
+    branch: string;
+    sha?: string | null;
+  }): Promise<GithubCommitResult>;
 }
 
 export interface EncryptedToken {
@@ -261,6 +282,73 @@ export function createGithubService(
         throw new GithubServiceError("repository_create_invalid_response");
       }
       return mapRepository(payload);
+    },
+
+    async getFile(accessToken: string, input: { owner: string; repo: string; path: string; branch: string }): Promise<GithubFile | null> {
+      const encodedPath = input.path.split("/").map(encodeURIComponent).join("/");
+      const query = new URLSearchParams({ ref: input.branch });
+      const url = `${config.apiBaseUrl}/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/contents/${encodedPath}?${query}`;
+      let response: Response;
+      try {
+        response = await fetchImpl(url, { headers: apiHeaders(accessToken) });
+      } catch {
+        throw new GithubServiceError("file_read_transport_failed");
+      }
+      if (response.status === 404) return null;
+      if (!response.ok) throw new GithubServiceError("file_read_failed", response.status);
+      let payload: any;
+      try {
+        payload = await response.json();
+      } catch {
+        throw new GithubServiceError("file_read_invalid_response");
+      }
+      if (typeof payload?.content !== "string") throw new GithubServiceError("file_read_invalid_response");
+      return {
+        path: String(payload.path || input.path),
+        sha: typeof payload.sha === "string" ? payload.sha : null,
+        content: Buffer.from(payload.content.replace(/\n/g, ""), "base64").toString("utf8"),
+      };
+    },
+
+    async upsertFile(accessToken: string, input: {
+      owner: string;
+      repo: string;
+      path: string;
+      content: string;
+      message: string;
+      branch: string;
+      sha?: string | null;
+    }): Promise<GithubCommitResult> {
+      const encodedPath = input.path.split("/").map(encodeURIComponent).join("/");
+      const url = `${config.apiBaseUrl}/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/contents/${encodedPath}`;
+      const body: Record<string, unknown> = {
+        message: input.message,
+        content: Buffer.from(input.content, "utf8").toString("base64"),
+        branch: input.branch,
+      };
+      if (input.sha) body.sha = input.sha;
+      let response: Response;
+      try {
+        response = await fetchImpl(url, {
+          method: "PUT",
+          headers: { ...apiHeaders(accessToken), "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      } catch {
+        throw new GithubServiceError("file_commit_transport_failed");
+      }
+      if (!response.ok) throw new GithubServiceError("file_commit_failed", response.status);
+      let payload: any;
+      try {
+        payload = await response.json();
+      } catch {
+        throw new GithubServiceError("file_commit_invalid_response");
+      }
+      if (typeof payload?.commit?.sha !== "string") throw new GithubServiceError("file_commit_invalid_response");
+      return {
+        sha: payload.commit.sha,
+        htmlUrl: String(payload.content?.html_url || payload.commit?.html_url || ""),
+      };
     },
   };
 }

@@ -47,7 +47,7 @@ one dependency-ready batch at a time as defined in `docs/BUILD_ORDER.md`.
 
 No client ID, secret, token or encryption key is present in this repository.
 
-### Batch 3.2 — Repository management (IMPLEMENTED, LIVE BLOCKED)
+## Batch 3.2 — Repository management (IMPLEMENTED, LIVE BLOCKED)
 
 - `GET /api/github/repositories` lists accessible repositories through the backend using the
   encrypted stored token; no token is returned to Android.
@@ -59,12 +59,37 @@ No client ID, secret, token or encryption key is present in this repository.
 - Android client methods and HTTPS integration coverage were added.
 - GitHub service tests cover repository listing/creation payloads; API tests cover list, create,
   duplicate rejection, selection and token non-exposure.
-- Local backend tests: **15 passed, 0 failures** (8 Phase 2 + 7 Phase 3 tests). Live GitHub calls
-  remain blocked by the OAuth setup in Batch 3.1.
+- Local backend tests at this batch: **15 passed, 0 failures** (8 Phase 2 + 7 Phase 3 tests). Live
+  GitHub calls remain blocked by the OAuth setup in Batch 3.1.
+- CI on commit `2ea1dd8`: `Cloud Backend CI` `45353275993` **success** and `Android CI`
+  `45353276135` **success**, including the HTTPS integration test. The earlier `Android CI`
+  `45352049122` failure was solely temporary-tunnel DNS propagation; the job now requests a fresh
+  tunnel when an assigned hostname is unreachable.
+
+## Batch 3.3 — Cloud code editing and commits (IMPLEMENTED, LIVE BLOCKED)
+
+### Implemented
+
+- `GET /api/projects/files`, `PUT /api/projects/files` and `GET /api/projects/file` inspect and edit
+  backend-stored project files. Paths reject traversal, hidden files and unsupported extensions;
+  content is size-bounded.
+- `POST /api/projects/ai-files` uses the existing five-model AI fallback chain through a JSON-only
+  planner, validates every returned operation, and applies it to the selected project.
+- `POST /api/projects/commit` reads the current GitHub file SHA, commits each dirty file with the
+  GitHub Contents API, marks committed files clean, and records success or the safe provider error.
+- `GET /api/projects/commits` reports actual recorded commit status, SHA, message and error. Failed
+  commits are recorded, not reported as success.
+- Android client methods cover file list/read/save, AI edit, commit and commit history. No GitHub
+  token is ever returned to Android.
+
+### Verified locally
+
+- `cd cloud && npm test`: **21 passed, 0 failures** (8 Phase 2 + 13 Phase 3 tests).
+- Tests cover path/content validation, AI plan parsing, GitHub Contents API request shape, mocked
+  AI/file editing, successful commit state, `no_changes`, and accurate failed-commit reporting.
+- Live GitHub commits were not performed; the OAuth credentials from Batch 3.1 are still required.
 
 ### Remaining batches
 
-Cloud file editing/commits, Actions orchestration, APK delivery and signed release preparation are
-next in dependency order. They are listed in `docs/BUILD_ORDER.md`. The Android HTTPS job now
-requests a fresh Cloudflare quick tunnel if an assigned hostname is not reachable, because a CI run
-on the first Phase 3 commit failed solely on temporary-tunnel DNS propagation.
+Actions orchestration, APK delivery and signed release preparation are next in dependency order.
+They are listed in `docs/BUILD_ORDER.md`.

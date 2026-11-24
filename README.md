@@ -79,9 +79,10 @@ follow-on dependencies; HTTPS was verified through a temporary tunnel, not a dep
 
 ## Phase 3 status
 
-Phase 3 started from the Phase 2 HEAD without rewriting it. Batch 3.1 implements server-side GitHub
-OAuth with encrypted token storage, connection status/disconnect, repository listing, new public
-repository creation and explicit project selection; 15 backend tests pass (8 Phase 2 + 7 Phase 3).
-Live GitHub verification requires an OAuth App, HTTPS callback domain, client ID/secret and a
-32-byte token encryption key as documented in `docs/PHASE_3.md`. Commit/file editing, Actions
-orchestration and APK delivery remain next in dependency order.
+Phase 3 started from the Phase 2 HEAD without rewriting it. Batches 3.1–3.3 implement server-side
+GitHub OAuth with encrypted token storage, connection status/disconnect, repository listing, new
+public repository creation, explicit project selection, AI-assisted file editing and GitHub commits
+with accurate status/errors. 21 backend tests pass (8 Phase 2 + 13 Phase 3). Live GitHub verification
+requires an OAuth App, HTTPS callback domain, client ID/secret and a 32-byte token encryption key as
+documented in `docs/PHASE_3.md`. Actions orchestration, APK delivery and signed release preparation
+remain next in dependency order.

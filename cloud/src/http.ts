@@ -15,15 +15,28 @@ import {
   findProjectByRepo,
   findSelectedProject,
   selectProject,
+  saveProjectFile,
+  findProjectFile,
+  listProjectFiles,
+  markProjectFileCommitted,
+  recordProjectCommit,
+  listProjectCommits,
 } from "./db.ts";
 import { loadConfig, type CloudConfig, type GithubConfig } from "./config.ts";
 import { createGithubService, decryptToken, encryptToken, isGithubConfigured, type GithubService } from "./github.ts";
+import {
+  createDefaultAiFilePlanner,
+  validateFilePath,
+  validateFileContent,
+  type AiFilePlanner,
+} from "./files.ts";
 
 export interface AuthUser { id: string; email: string }
 
 export interface ApiDependencies {
   githubConfig: GithubConfig;
   githubService: GithubService;
+  aiFilePlanner: AiFilePlanner;
 }
 
 class ApiRequestError extends Error {
@@ -42,6 +55,7 @@ export function createApiDependencies(config: CloudConfig = loadConfig()): ApiDe
   return {
     githubConfig: config.github,
     githubService: createGithubService(config.github),
+    aiFilePlanner: createDefaultAiFilePlanner(),
   };
 }
 
@@ -250,7 +264,171 @@ export async function handleApiRequest(
     }
     return;
   }
+  if (req.method === "GET" && path === "/api/projects/files") {
+    try {
+      const { project } = requireSelectedProject(auth.userId, deps);
+      sendJson(res, 200, { files: listProjectFiles(String(project.id)).map(fileDto) });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
+  if (req.method === "PUT" && path === "/api/projects/files") {
+    try {
+      const { project } = requireSelectedProject(auth.userId, deps);
+      const body = await readJson(req);
+      const filePath = validatedPath(body?.path);
+      const content = validatedContent(body?.content);
+      saveProjectFile({ projectId: String(project.id), path: filePath, content, now: Date.now() });
+      sendJson(res, 200, { file: fileDto(findProjectFile(String(project.id), filePath)) });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
+  if (req.method === "GET" && path === "/api/projects/file") {
+    try {
+      const { project } = requireSelectedProject(auth.userId, deps);
+      const filePath = validatedPath(url.searchParams.get("path") || "");
+      const file = findProjectFile(String(project.id), filePath);
+      if (!file) throw new ApiRequestError(404, "file_not_found");
+      sendJson(res, 200, { file: fileDto(file) });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
+  if (req.method === "POST" && path === "/api/projects/ai-files") {
+    try {
+      const { project } = requireSelectedProject(auth.userId, deps);
+      const body = await readJson(req);
+      const instruction = String(body?.instruction || "").trim();
+      if (!instruction || instruction.length > 10_000) throw new ApiRequestError(400, "invalid_request");
+      const existing = listProjectFiles(String(project.id)).map((file) => ({ path: String(file.path), content: String(file.content) }));
+      const plan = await deps.aiFilePlanner({ instruction, files: existing });
+      const now = Date.now();
+      for (const operation of plan.operations) {
+        saveProjectFile({ projectId: String(project.id), path: operation.path, content: operation.content, now });
+      }
+      sendJson(res, 200, { model: plan.model, applied: plan.operations.map((operation) => operation.path) });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
+  if (req.method === "POST" && path === "/api/projects/commit") {
+    const body = await readJson(req);
+    try {
+      const { token, project } = requireSelectedProject(auth.userId, deps);
+      const message = String(body?.message || "").trim();
+      if (!message || message.length > 200) throw new ApiRequestError(400, "invalid_request");
+      const dirtyFiles = listProjectFiles(String(project.id), true);
+      if (!dirtyFiles.length) throw new ApiRequestError(400, "no_changes");
+      const commitId = randomUUID();
+      const owner = String(project.repoOwner);
+      const repo = String(project.repoName);
+      const branch = String(project.defaultBranch);
+      const results: any[] = [];
+      for (const file of dirtyFiles) {
+        const filePath = String(file.path);
+        const existing = await deps.githubService.getFile(token, { owner, repo, path: filePath, branch });
+        const commit = await deps.githubService.upsertFile(token, {
+          owner,
+          repo,
+          path: filePath,
+          content: String(file.content),
+          message,
+          branch,
+          sha: existing?.sha ?? null,
+        });
+        markProjectFileCommitted(String(project.id), filePath, Date.now());
+        results.push({ path: filePath, sha: commit.sha, htmlUrl: commit.htmlUrl });
+      }
+      recordProjectCommit({
+        id: commitId,
+        projectId: String(project.id),
+        status: "success",
+        commitSha: results[0]?.sha ?? null,
+        message,
+        error: null,
+        now: Date.now(),
+      });
+      sendJson(res, 200, { status: "success", commitId, files: results });
+    } catch (error) {
+      const project = findSelectedProject(auth.userId);
+      if (project) {
+        recordProjectCommit({
+          id: randomUUID(),
+          projectId: String(project.id),
+          status: "failed",
+          commitSha: null,
+          message: String(body?.message || "").slice(0, 200),
+          error: safeGithubError(error),
+          now: Date.now(),
+        });
+      }
+      sendGithubError(res, error);
+    }
+    return;
+  }
+  if (req.method === "GET" && path === "/api/projects/commits") {
+    try {
+      const { project } = requireSelectedProject(auth.userId, deps);
+      sendJson(res, 200, { commits: listProjectCommits(String(project.id)).map(commitDto) });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
   sendJson(res, 404, { error: "not_found" });
+}
+
+function requireSelectedProject(userId: string, deps: ApiDependencies): { token: string; project: any } {
+  const { token } = requireGithubAccess(userId, deps);
+  const project = findSelectedProject(userId);
+  if (!project) throw new ApiRequestError(409, "project_not_selected");
+  return { token, project };
+}
+
+function validatedPath(rawPath: unknown): string {
+  try {
+    return validateFilePath(String(rawPath || ""));
+  } catch (error) {
+    const code = (error as Error)?.message;
+    throw new ApiRequestError(400, code === "unsupported_file_type" ? code : "invalid_file_path");
+  }
+}
+
+function validatedContent(content: unknown): string {
+  if (typeof content !== "string") throw new ApiRequestError(400, "invalid_file_content");
+  try {
+    return validateFileContent(content);
+  } catch {
+    throw new ApiRequestError(400, "invalid_file_content");
+  }
+}
+
+const SAFE_ERROR_CODES = new Set([
+  "invalid_ai_file_plan",
+  "invalid_file_path",
+  "invalid_file_content",
+  "unsupported_file_type",
+  "file_read_transport_failed",
+  "file_read_failed",
+  "file_read_invalid_response",
+  "file_commit_transport_failed",
+  "file_commit_failed",
+  "file_commit_invalid_response",
+]);
+
+function safeGithubError(error: unknown): string {
+  if (error instanceof ApiRequestError) return error.code;
+  const candidate = error as { code?: unknown; message?: unknown };
+  const isSafeCode = (value: unknown): value is string =>
+    typeof value === "string" && (SAFE_ERROR_CODES.has(value) || /^(github_|repository_|file_|invalid_ai_|unsupported_file_)/.test(value));
+  if (isSafeCode(candidate?.code)) return candidate.code;
+  if (isSafeCode(candidate?.message)) return candidate.message;
+  return "internal_error";
 }
 
 function requireGithubAccess(userId: string, deps: ApiDependencies): { token: string; login: string } {
@@ -270,13 +448,11 @@ function sendGithubError(res: ServerResponse, error: unknown): void {
     sendJson(res, error.status, { error: error.code });
     return;
   }
-  const code = (error as any)?.code;
-  if (typeof code === "string" && code.startsWith("github_")) {
-    sendJson(res, 400, { error: "github_request_failed", providerCode: code });
-    return;
-  }
-  if (typeof code === "string" && code.startsWith("repository_")) {
-    sendJson(res, 400, { error: "github_request_failed", providerCode: code });
+  const code = safeGithubError(error);
+  if (code !== "internal_error") {
+    const status = Number((error as any)?.status);
+    const safeStatus = status >= 400 && status < 500 ? status : 400;
+    sendJson(res, safeStatus, { error: "github_request_failed", providerCode: code });
     return;
   }
   throw error;
@@ -304,6 +480,26 @@ function projectDto(project: any | undefined): Record<string, unknown> | null {
     repoName: String(project.repoName),
     defaultBranch: String(project.defaultBranch),
     htmlUrl: String(project.htmlUrl),
+  };
+}
+
+function fileDto(file: any): Record<string, unknown> {
+  return {
+    path: String(file.path),
+    content: String(file.content),
+    dirty: Boolean(file.dirty),
+    updatedAt: Number(file.updatedAt),
+  };
+}
+
+function commitDto(commit: any): Record<string, unknown> {
+  return {
+    id: String(commit.id),
+    status: String(commit.status),
+    commitSha: commit.commitSha ? String(commit.commitSha) : null,
+    message: String(commit.message),
+    error: commit.error ? String(commit.error) : null,
+    createdAt: Number(commit.createdAt),
   };
 }
 

@@ -28,7 +28,7 @@ Scope:
 Evidence: `docs/PHASE_2.md`, `docs/PROGRESS.md`.
 Final Phase 2 CI: `45348660432` (Android) and `45348660296` (Cloud Backend), both success.
 
-## Batch 3.1 — GitHub authentication (CURRENT)
+## Batch 3.1 — GitHub authentication (IMPLEMENTED, LIVE BLOCKED BY CREDENTIALS)
 
 Dependency: Phase 2 authenticated cloud backend and HTTPS Android client.
 
@@ -49,13 +49,15 @@ Exit criteria:
 - List accessible repositories through the backend using the stored token.
 - Select a repository and create a new public repository for each new app project.
 - Never reuse or update an existing app repository unless explicitly requested.
+- CI green: `45353275993` (Cloud Backend) and `45353276135` (Android).
 
-## Batch 3.3 — Cloud code editing and commits (BLOCKED BY 3.2)
+## Batch 3.3 — Cloud code editing and commits (IMPLEMENTED, LIVE BLOCKED BY 3.1 CREDENTIALS)
 
 - AI-assisted create/inspect/modify project files in backend storage.
 - Commit changes to the selected repository with accurate commit status and errors.
+- Backend tests: 21 passed locally; CI evidence recorded in `docs/PROGRESS.md` after push.
 
-## Batch 3.4 — GitHub Actions build orchestration (BLOCKED BY 3.3)
+## Batch 3.4 — GitHub Actions build orchestration (BLOCKED BY 3.3 LIVE VERIFICATION)
 
 - Trigger Android builds through GitHub Actions.
 - Monitor workflow runs and progress; retrieve logs and report only actual results.

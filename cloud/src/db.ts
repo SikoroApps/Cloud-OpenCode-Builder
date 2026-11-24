@@ -70,6 +70,24 @@ export function getDb(path: string): DatabaseSync {
       project_id TEXT NOT NULL,
       selected_at INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS project_files (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id TEXT NOT NULL,
+      path TEXT NOT NULL,
+      content TEXT NOT NULL,
+      dirty INTEGER NOT NULL DEFAULT 1,
+      updated_at INTEGER NOT NULL,
+      UNIQUE(project_id, path)
+    );
+    CREATE TABLE IF NOT EXISTS project_commits (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      commit_sha TEXT,
+      message TEXT NOT NULL,
+      error TEXT,
+      created_at INTEGER NOT NULL
+    );
   `);
   return db;
 }
@@ -294,4 +312,54 @@ export function listProjects(userId: string): any[] {
        FROM projects WHERE user_id = ? ORDER BY updated_at DESC`,
     )
     .all(userId) as any[];
+}
+
+export function saveProjectFile(input: { projectId: string; path: string; content: string; now: number; source?: string }): void {
+  getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite").prepare(
+    `INSERT INTO project_files (project_id, path, content, dirty, updated_at) VALUES (?, ?, ?, 1, ?)
+     ON CONFLICT(project_id, path) DO UPDATE SET content = excluded.content, dirty = 1, updated_at = excluded.updated_at`,
+  ).run(input.projectId, input.path, input.content, input.now);
+}
+
+export function findProjectFile(projectId: string, path: string): any | undefined {
+  return getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare("SELECT id, project_id AS projectId, path, content, dirty, updated_at AS updatedAt FROM project_files WHERE project_id = ? AND path = ?")
+    .get(projectId, path) as any;
+}
+
+export function listProjectFiles(projectId: string, dirtyOnly = false): any[] {
+  const suffix = dirtyOnly ? " AND dirty = 1" : "";
+  return getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare(`SELECT path, content, dirty, updated_at AS updatedAt FROM project_files WHERE project_id = ?${suffix} ORDER BY path ASC`)
+    .all(projectId) as any[];
+}
+
+export function markProjectFileCommitted(projectId: string, path: string, now: number): void {
+  getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare("UPDATE project_files SET dirty = 0, updated_at = ? WHERE project_id = ? AND path = ?")
+    .run(now, projectId, path);
+}
+
+export function recordProjectCommit(input: {
+  id: string;
+  projectId: string;
+  status: string;
+  commitSha: string | null;
+  message: string;
+  error: string | null;
+  now: number;
+}): void {
+  getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite").prepare(
+    `INSERT INTO project_commits (id, project_id, status, commit_sha, message, error, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(input.id, input.projectId, input.status, input.commitSha, input.message, input.error, input.now);
+}
+
+export function listProjectCommits(projectId: string, limit = 20): any[] {
+  return getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare(
+      `SELECT id, status, commit_sha AS commitSha, message, error, created_at AS createdAt
+       FROM project_commits WHERE project_id = ? ORDER BY created_at DESC LIMIT ?`,
+    )
+    .all(projectId, limit) as any[];
 }

@@ -9,7 +9,8 @@ import type { AddressInfo } from "node:net";
 import type { GithubConfig } from "../src/config.ts";
 import type { ApiDependencies } from "../src/http.ts";
 import { createApiHandler } from "../src/http.ts";
-import type { GithubService } from "../src/github.ts";
+import { GithubServiceError, type GithubService } from "../src/github.ts";
+import type { AiFilePlanner } from "../src/files.ts";
 import { closeDb } from "../src/db.ts";
 
 process.env.CLOUD_DB_PATH = join(mkdtempSync(join(tmpdir(), "co-github-api-")), "test.sqlite");
@@ -26,7 +27,9 @@ function githubConfig(configured = true): GithubConfig {
   };
 }
 
-function mockService(): GithubService {
+function mockService(options: { failCommit?: boolean } = {}): GithubService {
+  const files = new Map<string, string>([["README.md", "# existing-app"]]);
+  let commitCount = 0;
   const repositories = [{
     id: 1,
     fullName: "octocat/existing-app",
@@ -68,7 +71,65 @@ function mockService(): GithubService {
       repositories.push(repo);
       return repo;
     },
+    async getFile(_token: string, input: { path: string }) {
+      const content = files.get(input.path);
+      return content === undefined ? null : { path: input.path, sha: `sha-${input.path}`, content };
+    },
+    async upsertFile(_token: string, input: { path: string; content: string }) {
+      if (options.failCommit) throw new GithubServiceError("file_commit_failed", 403);
+      commitCount += 1;
+      files.set(input.path, input.content);
+      const sha = `commit-${commitCount}-${input.path.replace(/[^A-Za-z0-9_-]/g, "-")}`;
+      return { sha, htmlUrl: `https://github.com/octocat/new-app/commit/${sha}` };
+    },
   };
+}
+
+function mockAiPlanner(): AiFilePlanner {
+  return async ({ instruction }) => ({
+    model: "mock/file-planner",
+    operations: [{
+      path: "app/src/main/Generated.kt",
+      content: `// ${instruction}\nclass Generated\n`,
+    }],
+  });
+}
+
+function deps(configured = true, service: GithubService = mockService()): ApiDependencies {
+  return {
+    githubConfig: githubConfig(configured),
+    githubService: service,
+    aiFilePlanner: mockAiPlanner(),
+  };
+}
+
+async function registerAndConnect(baseUrl: string): Promise<Record<string, string>> {
+  const registered = await fetch(`${baseUrl}/api/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email: `files-${Date.now()}-${randomBytes(4).toString("hex")}@example.invalid`,
+      password: "password-1234",
+    }),
+  });
+  assert.equal(registered.status, 201);
+  const token = String(((await registered.json()) as any).token);
+  const auth = { Authorization: `Bearer ${token}` };
+  const start = await fetch(`${baseUrl}/api/github/oauth/start`, { headers: auth });
+  assert.equal(start.status, 200);
+  const state = new URL(((await start.json()) as any).authorizationUrl).searchParams.get("state") || "";
+  const callback = await fetch(`${baseUrl}/api/github/oauth/callback?code=abc&state=${state}`, { redirect: "manual" });
+  assert.equal(new URL(callback.headers.get("location") || "").searchParams.get("status"), "connected");
+  return auth;
+}
+
+async function createProject(baseUrl: string, auth: Record<string, string>): Promise<void> {
+  const response = await fetch(`${baseUrl}/api/github/repositories`, {
+    method: "POST",
+    headers: { ...auth, "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "new-app", description: "created by Cloud OpenCode" }),
+  });
+  assert.equal(response.status, 201);
 }
 
 async function startServer(deps: ApiDependencies): Promise<{ baseUrl: string; close: () => Promise<void> }> {
@@ -82,7 +143,7 @@ async function startServer(deps: ApiDependencies): Promise<{ baseUrl: string; cl
 }
 
 test("GitHub OAuth connect, status and disconnect never expose the token", async () => {
-  const server = await startServer({ githubConfig: githubConfig(), githubService: mockService() });
+  const server = await startServer(deps());
   try {
     const registered = await fetch(`${server.baseUrl}/api/auth/register`, {
       method: "POST",
@@ -174,7 +235,7 @@ test("GitHub OAuth connect, status and disconnect never expose the token", async
 });
 
 test("GitHub endpoints report missing configuration without generated credentials", async () => {
-  const server = await startServer({ githubConfig: githubConfig(false), githubService: mockService() });
+  const server = await startServer(deps(false));
   try {
     const registered = await fetch(`${server.baseUrl}/api/auth/register`, {
       method: "POST",
@@ -194,6 +255,124 @@ test("GitHub endpoints report missing configuration without generated credential
     });
     assert.equal(response.status, 503);
     assert.equal(((await response.json()) as any).error, "github_not_configured");
+  } finally {
+    await server.close();
+    closeDb();
+  }
+});
+
+test("AI file editing and commit status work without exposing the GitHub token", async () => {
+  const server = await startServer(deps());
+  try {
+    const auth = await registerAndConnect(server.baseUrl);
+    await createProject(server.baseUrl, auth);
+
+    let response = await fetch(`${server.baseUrl}/api/projects/files`, { headers: auth });
+    assert.equal(response.status, 200);
+    assert.deepEqual(((await response.json()) as any).files, []);
+
+    response = await fetch(`${server.baseUrl}/api/projects/files`, {
+      method: "PUT",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ path: "README.md", content: "# new-app" }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal(((await response.json()) as any).file.dirty, true);
+
+    response = await fetch(`${server.baseUrl}/api/projects/files`, {
+      method: "PUT",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ path: "../secret.md", content: "no" }),
+    });
+    assert.equal(response.status, 400);
+    assert.equal(((await response.json()) as any).error, "invalid_file_path");
+
+    response = await fetch(`${server.baseUrl}/api/projects/files`, {
+      method: "PUT",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ path: "app/src/main/sketch.bin", content: "no" }),
+    });
+    assert.equal(response.status, 400);
+    assert.equal(((await response.json()) as any).error, "unsupported_file_type");
+
+    response = await fetch(`${server.baseUrl}/api/projects/ai-files`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ instruction: "add greeting" }),
+    });
+    assert.equal(response.status, 200);
+    const aiPlan = (await response.json()) as any;
+    assert.equal(aiPlan.model, "mock/file-planner");
+    assert.deepEqual(aiPlan.applied, ["app/src/main/Generated.kt"]);
+
+    response = await fetch(`${server.baseUrl}/api/projects/file?path=app%2Fsrc%2Fmain%2FGenerated.kt`, { headers: auth });
+    assert.equal(response.status, 200);
+    assert.match(((await response.json()) as any).file.content, /add greeting/);
+
+    response = await fetch(`${server.baseUrl}/api/projects/commit`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "apply AI edits" }),
+    });
+    assert.equal(response.status, 200);
+    const commit = (await response.json()) as any;
+    assert.equal(commit.status, "success");
+    assert.equal(commit.files.length, 2);
+    assert.equal(typeof commit.files[0].sha, "string");
+    assert.equal(JSON.stringify(commit).includes("gh-token-do-not-expose"), false);
+
+    response = await fetch(`${server.baseUrl}/api/projects/files`, { headers: auth });
+    const files = ((await response.json()) as any).files as any[];
+    assert.equal(files.every((file) => file.dirty === false), true);
+
+    response = await fetch(`${server.baseUrl}/api/projects/commit`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "nothing to commit" }),
+    });
+    assert.equal(response.status, 400);
+    assert.equal(((await response.json()) as any).error, "no_changes");
+
+    response = await fetch(`${server.baseUrl}/api/projects/commits`, { headers: auth });
+    const commits = ((await response.json()) as any).commits as any[];
+    assert.equal(commits[0].status, "failed");
+    assert.equal(commits[0].error, "no_changes");
+    assert.equal(commits[1].status, "success");
+    assert.equal(commits[1].message, "apply AI edits");
+    assert.equal(JSON.stringify(commits).includes("gh-token-do-not-expose"), false);
+  } finally {
+    await server.close();
+    closeDb();
+  }
+});
+
+test("failed GitHub commit records the accurate provider error", async () => {
+  const server = await startServer(deps(true, mockService({ failCommit: true })));
+  try {
+    const auth = await registerAndConnect(server.baseUrl);
+    await createProject(server.baseUrl, auth);
+    let response = await fetch(`${server.baseUrl}/api/projects/files`, {
+      method: "PUT",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ path: "README.md", content: "# changed" }),
+    });
+    assert.equal(response.status, 200);
+
+    response = await fetch(`${server.baseUrl}/api/projects/commit`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "will fail" }),
+    });
+    assert.equal(response.status, 403);
+    const error = (await response.json()) as any;
+    assert.equal(error.error, "github_request_failed");
+    assert.equal(error.providerCode, "file_commit_failed");
+    assert.equal(JSON.stringify(error).includes("gh-token-do-not-expose"), false);
+
+    response = await fetch(`${server.baseUrl}/api/projects/commits`, { headers: auth });
+    const commits = ((await response.json()) as any).commits as any[];
+    assert.equal(commits[0].status, "failed");
+    assert.equal(commits[0].error, "file_commit_failed");
   } finally {
     await server.close();
     closeDb();

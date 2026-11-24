@@ -84,6 +84,56 @@ test("repository listing and creation use the public-repository contract", async
   assert.equal(body.auto_init, true);
 });
 
+test("file reads and commits use the GitHub contents API safely", async () => {
+  let readUrl = "";
+  let writeUrl = "";
+  let writeBody: any = null;
+  const filePayload = {
+    path: "app/src/main/Hello.kt",
+    sha: "blob-sha",
+    content: Buffer.from("class Hello\n", "utf8").toString("base64"),
+  };
+  const service = createGithubService(config(), (async (input: any, init: any) => {
+    assert.equal(init.headers.Authorization, "Bearer token");
+    if (init.method === "PUT") {
+      writeUrl = String(input);
+      writeBody = JSON.parse(String(init.body));
+      return new Response(JSON.stringify({
+        content: { html_url: "https://github.com/octocat/app/commit/content" },
+        commit: { sha: "commit-sha" },
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    readUrl = String(input);
+    return new Response(JSON.stringify(filePayload), { status: 200, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch);
+
+  const file = await service.getFile("token", {
+    owner: "octocat",
+    repo: "app",
+    path: "app/src/main/Hello.kt",
+    branch: "main",
+  });
+  assert.equal(file?.content, "class Hello\n");
+  assert.equal(file?.sha, "blob-sha");
+  assert.match(readUrl, /\/repos\/octocat\/app\/contents\/app\/src\/main\/Hello\.kt\?ref=main$/);
+
+  const commit = await service.upsertFile("token", {
+    owner: "octocat",
+    repo: "app",
+    path: "app/src/main/Hello.kt",
+    content: "class Hello\n",
+    message: "add hello",
+    branch: "main",
+    sha: "blob-sha",
+  });
+  assert.equal(commit.sha, "commit-sha");
+  assert.match(writeUrl, /\/repos\/octocat\/app\/contents\/app\/src\/main\/Hello\.kt$/);
+  assert.equal(writeBody.message, "add hello");
+  assert.equal(writeBody.branch, "main");
+  assert.equal(writeBody.sha, "blob-sha");
+  assert.equal(Buffer.from(writeBody.content, "base64").toString("utf8"), "class Hello\n");
+});
+
 test("OAuth code exchange succeeds and never echoes provider errors with token material", async () => {
   const service = createGithubService(config(), (async (input: any, init: any) => {
     assert.equal(String(input), "https://github.com/login/oauth/access_token");

@@ -26,6 +26,12 @@ interface CloudApiClient {
     fun createGithubRepository(token: String, name: String, description: String): Result<GithubRepository>
     fun selectGithubProject(token: String, repoFullName: String): Result<GithubProject>
     fun selectedGithubProject(token: String): Result<GithubProject?>
+    fun projectFiles(token: String): Result<List<ProjectFile>>
+    fun projectFile(token: String, path: String): Result<ProjectFile>
+    fun saveProjectFile(token: String, path: String, content: String): Result<ProjectFile>
+    fun aiEditFiles(token: String, instruction: String): Result<AiFilePlanResult>
+    fun commitProject(token: String, message: String): Result<ProjectCommitResult>
+    fun projectCommits(token: String): Result<List<ProjectCommit>>
 }
 
 class CloudApiClientImpl(
@@ -174,6 +180,81 @@ class CloudApiClientImpl(
         val response = request("GET", "/api/github/selection", token, null)
         if (response.isNull("project")) null else response.optJSONObject("project")?.let(::projectFromJson)
     }
+
+    override fun projectFiles(token: String): Result<List<ProjectFile>> = runCatching {
+        val response = request("GET", "/api/projects/files", token, null)
+        val array = response.optJSONArray("files") ?: throw CloudApiError.Network("project files failed")
+        val files = ArrayList<ProjectFile>()
+        for (index in 0 until array.length()) {
+            val item = array.optJSONObject(index) ?: continue
+            files.add(fileFromJson(item))
+        }
+        files
+    }
+
+    override fun projectFile(token: String, path: String): Result<ProjectFile> = runCatching {
+        val encoded = java.net.URLEncoder.encode(path, "UTF-8")
+        val response = request("GET", "/api/projects/file?path=$encoded", token, null)
+        response.optJSONObject("file")?.let(::fileFromJson)
+            ?: throw CloudApiError.Network("project file failed")
+    }
+
+    override fun saveProjectFile(token: String, path: String, content: String): Result<ProjectFile> = runCatching {
+        val body = JSONObject().put("path", path).put("content", content)
+        val response = request("PUT", "/api/projects/files", token, body)
+        response.optJSONObject("file")?.let(::fileFromJson)
+            ?: throw CloudApiError.Network("project file save failed")
+    }
+
+    override fun aiEditFiles(token: String, instruction: String): Result<AiFilePlanResult> = runCatching {
+        val body = JSONObject().put("instruction", instruction)
+        val response = request("POST", "/api/projects/ai-files", token, body)
+        val array = response.optJSONArray("applied") ?: throw CloudApiError.Network("AI file edit failed")
+        val applied = ArrayList<String>()
+        for (index in 0 until array.length()) applied.add(array.optString(index))
+        AiFilePlanResult(response.optString("model"), applied)
+    }
+
+    override fun commitProject(token: String, message: String): Result<ProjectCommitResult> = runCatching {
+        val body = JSONObject().put("message", message)
+        val response = request("POST", "/api/projects/commit", token, body)
+        val array = response.optJSONArray("files") ?: throw CloudApiError.Network("commit failed")
+        val files = ArrayList<CommittedFile>()
+        for (index in 0 until array.length()) {
+            val item = array.optJSONObject(index) ?: continue
+            files.add(CommittedFile(
+                path = item.optString("path"),
+                sha = item.optString("sha"),
+                htmlUrl = item.optString("htmlUrl"),
+            ))
+        }
+        ProjectCommitResult(response.optString("status"), response.optString("commitId"), files)
+    }
+
+    override fun projectCommits(token: String): Result<List<ProjectCommit>> = runCatching {
+        val response = request("GET", "/api/projects/commits", token, null)
+        val array = response.optJSONArray("commits") ?: throw CloudApiError.Network("commit list failed")
+        val commits = ArrayList<ProjectCommit>()
+        for (index in 0 until array.length()) {
+            val item = array.optJSONObject(index) ?: continue
+            commits.add(ProjectCommit(
+                id = item.optString("id"),
+                status = item.optString("status"),
+                commitSha = if (item.isNull("commitSha")) null else item.optString("commitSha"),
+                message = item.optString("message"),
+                error = if (item.isNull("error")) null else item.optString("error"),
+                createdAt = item.optLong("createdAt"),
+            ))
+        }
+        commits
+    }
+
+    private fun fileFromJson(json: JSONObject): ProjectFile = ProjectFile(
+        path = json.optString("path"),
+        content = json.optString("content"),
+        dirty = json.optBoolean("dirty"),
+        updatedAt = json.optLong("updatedAt"),
+    )
 
     private fun repositoryFromJson(json: JSONObject): GithubRepository = GithubRepository(
         id = json.optLong("id"),

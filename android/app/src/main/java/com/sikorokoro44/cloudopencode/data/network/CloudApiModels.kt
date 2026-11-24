@@ -72,6 +72,39 @@ data class GithubProject(
     val htmlUrl: String,
 )
 
+data class ProjectFile(
+    val path: String,
+    val content: String,
+    val dirty: Boolean,
+    val updatedAt: Long,
+)
+
+data class AiFilePlanResult(
+    val model: String,
+    val applied: List<String>,
+)
+
+data class CommittedFile(
+    val path: String,
+    val sha: String,
+    val htmlUrl: String,
+)
+
+data class ProjectCommitResult(
+    val status: String,
+    val commitId: String,
+    val files: List<CommittedFile>,
+)
+
+data class ProjectCommit(
+    val id: String,
+    val status: String,
+    val commitSha: String?,
+    val message: String,
+    val error: String?,
+    val createdAt: Long,
+)
+
 sealed class CloudApiError(message: String) : Exception(message) {
     data class Http(val code: Int, val errorMessage: String) : CloudApiError(errorMessage)
     data class Network(val errorMessage: String) : CloudApiError(errorMessage)
