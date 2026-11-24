@@ -209,6 +209,8 @@ EXTERNAL SETUP**; started from Phase 3 HEAD `54e2d49` without rewriting complete
   `git diff --check`: passed.
 - Live OAuth, real commits, real Actions runs, real APK artifacts and device installation were not
   performed; see `docs/PHASE_4.md`.
+- CI on commit `2fcebb8`: `Cloud Backend CI` `45408308794` **success** and `Android CI`
+  `45408308675` **success**. These runs verify code/mocks only, not live-service release gates.
 
 ### Blocked
 

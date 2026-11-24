@@ -113,7 +113,8 @@ Exit criteria:
 ## Batch 4.6 — Final release (BLOCKED)
 
 - Cannot be claimed until live OAuth, real commit, live successful workflow, real signed APK and
-  device gates pass. Independent hardening and automated-test gates are complete.
+  device gates pass. Independent hardening and automated-test gates are complete: 38 backend tests
+  and CI green on `45408308794` (Cloud Backend) and `45408308675` (Android).
 
 ## Batch 5 — Advanced features (planned)
 

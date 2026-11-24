@@ -131,3 +131,14 @@ closed.
 - **APK verified**: none; no real APK artifact or signature report was available in this environment.
 - **Real-device verified**: none; no physical device or Android SDK is available here.
 - **Blocked**: live portions of Batches 4.2–4.6 pending the manual setup listed above.
+
+## CI evidence for independent hardening
+
+On commit `2fcebb8`:
+
+- `Cloud Backend CI` run `45408308794`: **success** (38 backend tests, typecheck, masked readiness).
+- `Android CI` run `45408308675`: **success** (verify, emulator smoke and HTTPS integration, including
+  the new checksum endpoint check).
+
+These runs verify code and mocked integration only. They are not live GitHub OAuth, real repository
+commit, application-dispatched Actions run, real APK signature or device-installation evidence.
