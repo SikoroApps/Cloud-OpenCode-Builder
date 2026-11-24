@@ -40,8 +40,8 @@ The `Publish backend image` GitHub Actions workflow builds `cloud/Dockerfile` on
 credential):
 
 ```text
-ghcr.io/<owner>/cloud-opencode-backend:latest
-ghcr.io/<owner>/cloud-opencode-backend:sha-<commit>
+ghcr.io/<lowercase-owner>/cloud-opencode-backend:latest
+ghcr.io/<lowercase-owner>/cloud-opencode-backend:sha-<commit>
 ```
 
 For a single Linux host with Docker Compose and a public DNS domain, `deploy/docker-compose.yml`

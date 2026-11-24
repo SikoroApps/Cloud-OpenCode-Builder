@@ -25,11 +25,16 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Normalize image name
+        id: image
+        run: echo "name=ghcr.io/${OWNER,,}/cloud-opencode-backend" >> "$GITHUB_OUTPUT"
+        env:
+          OWNER: ${{ github.repository_owner }}
       - name: Build and push deployable image
         uses: docker/build-push-action@v6
         with:
           context: ./cloud
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/cloud-opencode-backend:latest
-            ghcr.io/${{ github.repository_owner }}/cloud-opencode-backend:sha-${{ github.sha }}
+            ${{ steps.image.outputs.name }}:latest
+            ${{ steps.image.outputs.name }}:sha-${{ github.sha }}
