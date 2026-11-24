@@ -55,7 +55,8 @@ Exit criteria:
 
 - AI-assisted create/inspect/modify project files in backend storage.
 - Commit changes to the selected repository with accurate commit status and errors.
-- Backend tests: 21 passed locally; CI evidence recorded in `docs/PROGRESS.md` after push.
+- Backend tests: 21 passed locally; CI green on `45355223253` (Cloud Backend) and `45355223014`
+  (Android).
 
 ## Batch 3.4 — GitHub Actions build orchestration (BLOCKED BY 3.3 LIVE VERIFICATION)
 

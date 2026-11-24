@@ -135,7 +135,9 @@ Status: **BATCHES 3.1–3.3 IMPLEMENTED, LIVE VERIFICATION BLOCKED**; started fr
 - Tests cover AI plan safety, GitHub Contents API shape, commit success, `no_changes`, and accurate
   failed-commit error status; no token appears in API responses.
 - Android client gained file/edit/commit methods; HTTPS integration checks those endpoints fail
-  safely without GitHub configuration. CI evidence for this batch is pending the commit push.
+  safely without GitHub configuration.
+- CI on commit `285a7b2`: `Cloud Backend CI` `45355223253` **success** and `Android CI`
+  `45355223014` **success** (all three jobs, including HTTPS integration).
 
 ### Blocked
 
