@@ -1,6 +1,6 @@
 # Phase 2 — Cloud AI Engine
 
-Status: **IMPLEMENTATION AND VERIFICATION COMPLETE** on commit `9ccee3d`. Production hosting,
+Status: **IMPLEMENTATION AND VERIFICATION COMPLETE** on implementation commit `9ccee3d`. Production hosting,
 a permanent TLS domain and backend provider secrets remain external follow-on work.
 
 ## Implemented
@@ -25,9 +25,9 @@ a permanent TLS domain and backend provider secrets remain external follow-on wo
 
 ## Final CI evidence
 
-- `Cloud Backend CI` run `45347166634` on final commit `9ccee3d`: **success**
+- `Cloud Backend CI` run `45347166634` on implementation commit `9ccee3d`: **success**
   (8 backend tests, health smoke, container image build).
-- `Android CI` run `45347166635` on final commit `9ccee3d`: **success** (all three jobs):
+- `Android CI` run `45347166635` on implementation commit `9ccee3d`: **success** (all three jobs):
   - `verify`: unit tests, backend core tests, Android lint, debug APK assembly, package-name check
     and secret-marker scan.
   - `Emulator app-launch smoke test`: API 35 launch smoke passed.
@@ -85,7 +85,7 @@ integration coverage, not live verification of every provider.
   restart with stubbed AI.
 - Android communicates with backend over HTTPS: **yes**, verified in an API 35 emulator against an
   HTTPS tunnel, with 1 passed test and 0 skipped.
-- CI green on final commit: **yes** (`45347166635` and `45347166634` on `9ccee3d`).
+- CI green on the implementation commit: **yes** (`45347166635` and `45347166634` on `9ccee3d`).
 - Docs with evidence and blockers: **yes** (this file, `docs/PROGRESS.md` and `README.md`).
 
 ## Remaining external blockers / follow-on work

@@ -42,7 +42,7 @@ Status: **COMPLETE** with CI evidence.
 
 ## Phase 2 — Cloud AI Engine
 
-Status: **IMPLEMENTATION AND VERIFICATION COMPLETE** on commit `9ccee3d`; permanent production
+Status: **IMPLEMENTATION AND VERIFICATION COMPLETE** on implementation commit `9ccee3d`; permanent production
 deployment and provider secrets are external follow-on dependencies.
 
 ### Implemented
@@ -86,8 +86,8 @@ deployment and provider secrets are external follow-on dependencies.
 - `Android CI` `45345888322` on `d5bb65d`: **failure** (unsupported `--tests` option on
   `connectedDebugAndroidTest`; fixed).
 - `Android CI` `45346466679` on `80b4c4b`: **failure** (bodyless POST logout; fixed).
-- `Cloud Backend CI` `45347166634` on final commit `9ccee3d`: **success**.
-- `Android CI` `45347166635` on final commit `9ccee3d`: **success** (all three jobs, including
+- `Cloud Backend CI` `45347166634` on implementation commit `9ccee3d`: **success**.
+- `Android CI` `45347166635` on implementation commit `9ccee3d`: **success** (all three jobs, including
   HTTPS integration).
 
 ### Remaining external blockers / follow-on work
