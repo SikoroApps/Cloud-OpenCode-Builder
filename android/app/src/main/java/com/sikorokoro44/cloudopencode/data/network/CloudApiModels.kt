@@ -181,6 +181,48 @@ data class ReleaseTemplate(
     val note: String,
 )
 
+data class CloudImage(
+    val id: String,
+    val projectId: String?,
+    val filename: String,
+    val mimeType: String,
+    val sizeBytes: Long,
+    val sha256: String,
+    val source: String,
+    val prompt: String?,
+    val createdAt: Long,
+    val contentUrl: String,
+    val dataUrl: String?,
+)
+
+data class ImageAnalysisResult(
+    val imageId: String,
+    val model: String,
+    val content: String,
+    val prompt: String,
+)
+
+data class WebSearchResult(
+    val title: String,
+    val url: String,
+    val snippet: String,
+)
+
+data class WebSearchResponse(
+    val query: String,
+    val provider: String,
+    val results: List<WebSearchResult>,
+)
+
+data class CloudTask(
+    val id: String,
+    val projectId: String?,
+    val description: String,
+    val status: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
 sealed class CloudApiError(message: String) : Exception(message) {
     data class Http(val code: Int, val errorMessage: String) : CloudApiError(errorMessage)
     data class Network(val errorMessage: String) : CloudApiError(errorMessage)

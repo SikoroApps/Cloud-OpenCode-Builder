@@ -118,3 +118,25 @@ Live OAuth, a deployed HTTPS backend, an application-dispatched GitHub Actions r
 APK and physical-device verification remain externally blocked; no such result is claimed without
 evidence. A real **debug** APK artifact from CI was downloaded and SHA-256 verified as a build
 artifact only (see `docs/PHASE_5.md`); it is not a signed production release.
+
+## Phase 6–8 status — advanced features
+
+The advanced backlog is now split into three phases and implemented on top of the unchanged Phase 5
+checkpoint:
+
+- **Phase 6 — Image uploads and image understanding:** owner-scoped upload, magic-byte validation,
+  persistent storage, authenticated content retrieval and a free OpenRouter vision-analysis path.
+  Upload/storage is verified; live vision is blocked on `OPENROUTER_API_KEY`. See `docs/PHASE_6.md`.
+- **Phase 7 — Image generation:** free keyless Pollinations integration with fixed-host SSRF
+  protection, size/prompt limits and storage through the Phase 6 pipeline. **Live verified**: a real
+  512px JPEG was generated, persisted, re-read after a backend restart and SHA-256 matched
+  (`62ac8e0945cea1df95145fd773e2e7a2163e9ce1919112974af52289c20f9169`). See `docs/PHASE_7.md`.
+- **Phase 8 — Real-time web search and persistent cloud tasks:** live DuckDuckGo search results,
+  search-grounded chat with citations, and SQLite-backed tasks that survive backend restarts.
+  **Live verified**. See `docs/PHASE_8.md`.
+
+Backend suite after these phases: **73 tests passed, 0 failed**. The Android client exposes upload,
+analysis, generation, search and task methods; Android CI remains responsible for compilation, lint
+and emulator verification. The authoritative status and remaining external blockers are in
+`docs/MASTER_COMPLETION_TRACKER.md`. Production release gates (deployed HTTPS backend, real GitHub
+OAuth consent, signing secrets, signed APK and physical device) are still outstanding.

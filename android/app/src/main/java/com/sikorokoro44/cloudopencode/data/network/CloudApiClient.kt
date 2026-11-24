@@ -18,7 +18,7 @@ interface CloudApiClient {
     fun login(email: String, password: String): Result<CloudToken>
     fun logout(token: String): Result<Unit>
     fun history(token: String, sessionKey: String): Result<List<ChatMessageDto>>
-    fun sendChat(token: String, sessionKey: String, content: String): Result<CloudChatResponse>
+    fun sendChat(token: String, sessionKey: String, content: String, webSearch: Boolean = false): Result<CloudChatResponse>
     fun githubOAuthStart(token: String): Result<GithubOAuthStart>
     fun githubStatus(token: String): Result<GithubStatus>
     fun githubDisconnect(token: String): Result<GithubDisconnectResult>
@@ -43,6 +43,15 @@ interface CloudApiClient {
     fun apkChecksum(token: String, buildId: String, artifactId: Long): Result<ApkChecksum>
     fun addLauncherIcon(token: String): Result<List<String>>
     fun signedReleaseWorkflow(token: String): Result<ReleaseTemplate>
+    fun uploadImage(token: String, filename: String, mimeType: String, dataBase64: String, projectId: String? = null): Result<CloudImage>
+    fun listImages(token: String, projectId: String? = null): Result<List<CloudImage>>
+    fun analyzeImage(token: String, imageId: String, prompt: String): Result<ImageAnalysisResult>
+    fun generateImage(token: String, prompt: String, size: Int = 1024, projectId: String? = null): Result<CloudImage>
+    fun webSearch(token: String, query: String, limit: Int = 5): Result<WebSearchResponse>
+    fun createTask(token: String, description: String, projectId: String? = null): Result<CloudTask>
+    fun listTasks(token: String, projectId: String? = null): Result<List<CloudTask>>
+    fun updateTask(token: String, taskId: String, status: String): Result<CloudTask>
+    fun cancelTask(token: String, taskId: String): Result<CloudTask>
 }
 
 class CloudApiClientImpl(
@@ -115,8 +124,8 @@ class CloudApiClientImpl(
         }
     }
 
-    override fun sendChat(token: String, sessionKey: String, content: String): Result<CloudChatResponse> {
-        val body = JSONObject().put("sessionKey", sessionKey).put("content", content)
+    override fun sendChat(token: String, sessionKey: String, content: String, webSearch: Boolean): Result<CloudChatResponse> {
+        val body = JSONObject().put("sessionKey", sessionKey).put("content", content).put("webSearch", webSearch)
         return runCatching { request("POST", "/api/chat", token, body) }.map { raw ->
             val response = raw
             val userMessage = response.optJSONObject("userMessage")?.let(::messageFromJson)
@@ -412,6 +421,128 @@ class CloudApiClientImpl(
         }
         ReleaseTemplate(file, secrets, response.optString("note"))
     }
+
+    override fun uploadImage(
+        token: String,
+        filename: String,
+        mimeType: String,
+        dataBase64: String,
+        projectId: String?,
+    ): Result<CloudImage> = runCatching {
+        val body = JSONObject()
+            .put("filename", filename)
+            .put("mimeType", mimeType)
+            .put("dataBase64", dataBase64)
+        if (projectId != null) body.put("projectId", projectId)
+        val response = request("POST", "/api/images", token, body)
+        response.optJSONObject("image")?.let(::imageFromJson)
+            ?: throw CloudApiError.Network("image upload failed")
+    }
+
+    override fun listImages(token: String, projectId: String?): Result<List<CloudImage>> = runCatching {
+        val suffix = if (projectId != null) "?projectId=${java.net.URLEncoder.encode(projectId, "UTF-8")}" else ""
+        val response = request("GET", "/api/images$suffix", token, null)
+        val array = response.optJSONArray("images") ?: throw CloudApiError.Network("image list failed")
+        val images = ArrayList<CloudImage>()
+        for (index in 0 until array.length()) {
+            val item = array.optJSONObject(index) ?: continue
+            images.add(imageFromJson(item))
+        }
+        images
+    }
+
+    override fun analyzeImage(token: String, imageId: String, prompt: String): Result<ImageAnalysisResult> = runCatching {
+        val encoded = java.net.URLEncoder.encode(imageId, "UTF-8")
+        val body = JSONObject().put("prompt", prompt)
+        val response = request("POST", "/api/images/$encoded/analyze", token, body)
+        ImageAnalysisResult(
+            imageId = response.optString("imageId"),
+            model = response.optString("model"),
+            content = response.optString("content"),
+            prompt = response.optString("prompt"),
+        )
+    }
+
+    override fun generateImage(token: String, prompt: String, size: Int, projectId: String?): Result<CloudImage> = runCatching {
+        val body = JSONObject().put("prompt", prompt).put("size", size)
+        if (projectId != null) body.put("projectId", projectId)
+        val response = request("POST", "/api/images/generate", token, body)
+        response.optJSONObject("image")?.let(::imageFromJson)
+            ?: throw CloudApiError.Network("image generation failed")
+    }
+
+    override fun webSearch(token: String, query: String, limit: Int): Result<WebSearchResponse> = runCatching {
+        val body = JSONObject().put("query", query).put("limit", limit)
+        val response = request("POST", "/api/search", token, body)
+        val array = response.optJSONArray("results") ?: throw CloudApiError.Network("web search failed")
+        val results = ArrayList<WebSearchResult>()
+        for (index in 0 until array.length()) {
+            val item = array.optJSONObject(index) ?: continue
+            results.add(WebSearchResult(
+                title = item.optString("title"),
+                url = item.optString("url"),
+                snippet = item.optString("snippet"),
+            ))
+        }
+        WebSearchResponse(response.optString("query"), response.optString("provider"), results)
+    }
+
+    override fun createTask(token: String, description: String, projectId: String?): Result<CloudTask> = runCatching {
+        val body = JSONObject().put("description", description)
+        if (projectId != null) body.put("projectId", projectId)
+        val response = request("POST", "/api/tasks", token, body)
+        response.optJSONObject("task")?.let(::taskFromJson)
+            ?: throw CloudApiError.Network("task creation failed")
+    }
+
+    override fun listTasks(token: String, projectId: String?): Result<List<CloudTask>> = runCatching {
+        val suffix = if (projectId != null) "?projectId=${java.net.URLEncoder.encode(projectId, "UTF-8")}" else ""
+        val response = request("GET", "/api/tasks$suffix", token, null)
+        val array = response.optJSONArray("tasks") ?: throw CloudApiError.Network("task list failed")
+        val tasks = ArrayList<CloudTask>()
+        for (index in 0 until array.length()) {
+            val item = array.optJSONObject(index) ?: continue
+            tasks.add(taskFromJson(item))
+        }
+        tasks
+    }
+
+    override fun updateTask(token: String, taskId: String, status: String): Result<CloudTask> = runCatching {
+        val encoded = java.net.URLEncoder.encode(taskId, "UTF-8")
+        val response = request("PATCH", "/api/tasks/$encoded", token, JSONObject().put("status", status))
+        response.optJSONObject("task")?.let(::taskFromJson)
+            ?: throw CloudApiError.Network("task update failed")
+    }
+
+    override fun cancelTask(token: String, taskId: String): Result<CloudTask> = runCatching {
+        val encoded = java.net.URLEncoder.encode(taskId, "UTF-8")
+        val response = request("DELETE", "/api/tasks/$encoded", token, null)
+        response.optJSONObject("task")?.let(::taskFromJson)
+            ?: throw CloudApiError.Network("task cancellation failed")
+    }
+
+    private fun imageFromJson(json: JSONObject): CloudImage = CloudImage(
+        id = json.optString("id"),
+        projectId = if (json.isNull("projectId")) null else json.optString("projectId"),
+        filename = json.optString("filename"),
+        mimeType = json.optString("mimeType"),
+        sizeBytes = json.optLong("sizeBytes"),
+        sha256 = json.optString("sha256"),
+        source = json.optString("source"),
+        prompt = if (json.isNull("prompt")) null else json.optString("prompt"),
+        createdAt = json.optLong("createdAt"),
+        contentUrl = json.optString("contentUrl"),
+        dataUrl = if (json.isNull("dataUrl")) null else json.optString("dataUrl"),
+    )
+
+    private fun taskFromJson(json: JSONObject): CloudTask = CloudTask(
+        id = json.optString("id"),
+        projectId = if (json.isNull("projectId")) null else json.optString("projectId"),
+        description = json.optString("description"),
+        status = json.optString("status"),
+        createdAt = json.optLong("createdAt"),
+        updatedAt = json.optLong("updatedAt"),
+    )
 
     private fun buildFromJson(json: JSONObject): ProjectBuild = ProjectBuild(
         id = json.optString("id"),

@@ -151,7 +151,30 @@ All Phase 5 batches were verified by 60 backend tests and green CI on commit `41
 (`Cloud Backend CI` `45443444610`, `Android CI` `45443444436`). Those runs verify code and
 mocked/simulated flows only; see `docs/PHASE_5.md` for the complete live-blocker list.
 
-## Advanced features (planned, after Phase 5)
+## Phase 6 — Image uploads and image understanding (IMPLEMENTED; LIVE VISION BLOCKED)
 
-- Image uploads/understanding and image generation.
-- Real-time web search.
+Maps the first advanced backlog item from the original README/BUILD_ORDER to Phase 6.
+
+- Owner-scoped image upload with magic-byte validation, 5 MiB cap and path-traversal protection.
+- Persistent SQLite image storage and authenticated metadata/content endpoints.
+- Image-understanding endpoint backed by a free OpenRouter vision model.
+- Evidence: `docs/PHASE_6.md`; 5 new tests. Live vision remains blocked on `OPENROUTER_API_KEY`.
+
+## Phase 7 — Image generation (COMPLETE, LIVE VERIFIED)
+
+- `POST /api/images/generate` using the free keyless Pollinations endpoint with fixed host,
+  allowlisted sizes, prompt bounds and SSRF protection.
+- Generated images are validated and stored through the Phase 6 pipeline.
+- Live evidence: a 512px JPEG (17,277 bytes, SHA-256 `62ac8e...f9169`) was generated, stored,
+  re-read after a backend restart and checksum-matched.
+- Evidence: `docs/PHASE_7.md`; 3 new module/http tests.
+
+## Phase 8 — Real-time web search and persistent cloud tasks (COMPLETE, LIVE VERIFIED)
+
+- `POST /api/search` against DuckDuckGo HTML with bounded input, safe URL normalization and
+  real result parsing; `POST /api/chat` can inject search context and return citations.
+- Persistent `cloud_tasks` storage with create/list/update/cancel and owner scoping across restarts.
+- Live evidence: real DuckDuckGo results and a task that survived a backend restart.
+- Evidence: `docs/PHASE_8.md`; 5 new tests.
+
+The full status and blocker list is maintained in `docs/MASTER_COMPLETION_TRACKER.md`.

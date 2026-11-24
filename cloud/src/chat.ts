@@ -33,11 +33,33 @@ export function appendChatMessage(input: { userId: string; sessionKey: string; r
   };
 }
 
-export async function runAssistantTurn(input: { userId: string; sessionKey: string; content: string }): Promise<{ userMessage: ChatMessage; assistantMessage: ChatMessage; ai: Awaited<ReturnType<typeof runAiFallback>> }> {
+export interface WebSearchContext {
+  query: string;
+  results: { title: string; url: string; snippet: string }[];
+}
+
+export async function runAssistantTurn(input: {
+  userId: string;
+  sessionKey: string;
+  content: string;
+  search?: WebSearchContext;
+}): Promise<{ userMessage: ChatMessage; assistantMessage: ChatMessage; ai: Awaited<ReturnType<typeof runAiFallback>> }> {
   const now = Date.now();
   const userMessage = appendChatMessage({ userId: input.userId, sessionKey: input.sessionKey, role: "user", content: input.content, model: null, now });
   const history = getChatHistory(input.userId, input.sessionKey, 200);
   const messages = history.map((message) => ({ role: message.role, content: message.content }));
+  if (input.search?.results.length) {
+    const context = [
+      "Realtime web search results are included below. Use them when relevant and cite source URLs.",
+      `Search query: ${input.search.query}`,
+      ...input.search.results.map((result, index) => [
+        `[${index + 1}] ${result.title}`,
+        result.url,
+        result.snippet,
+      ].join("\n")),
+    ].join("\n\n");
+    messages.unshift({ role: "system", content: context });
+  }
   const ai = await runAiFallback({ messages });
   const assistantMessage = appendChatMessage({ userId: input.userId, sessionKey: input.sessionKey, role: "assistant", content: ai.content, model: ai.model, now });
   return { userMessage, assistantMessage, ai };

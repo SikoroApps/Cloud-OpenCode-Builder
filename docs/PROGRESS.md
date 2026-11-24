@@ -311,3 +311,47 @@ On final Phase 5 HEAD `a161f93` (commit following the implementation commit `417
 
 These runs verify code and mocked/simulated integration only. They are not live OAuth, real
 repository commit, application-dispatched Actions run, real signed APK or physical-device evidence.
+
+## Phase 6–8 — Advanced features
+
+Detailed scope, acceptance criteria and evidence are in `docs/PHASE_6.md`, `docs/PHASE_7.md`,
+`docs/PHASE_8.md` and `docs/MASTER_COMPLETION_TRACKER.md`. The phases follow the advanced backlog
+already recorded in `README.md` and `docs/BUILD_ORDER.md`; they do not change the five-model text
+fallback order or Phases 1–5.
+
+### Phase 6 — Image uploads and understanding
+
+- Implemented `POST /api/images`, `GET /api/images`, `GET /api/images/:id`,
+  `GET /api/images/:id/content` and `POST /api/images/:id/analyze`.
+- Images are validated by magic bytes (PNG/JPEG/WebP/GIF), capped at 5 MiB, sanitized for path
+  traversal, stored in SQLite and scoped to the authenticated user/project.
+- Vision analysis uses a free OpenRouter vision model behind `OPENROUTER_API_KEY`; no key is present
+  here, so live understanding is **BLOCKED** and only the injected/stub path is verified.
+- `cd cloud && npm test`: 5 Phase 6 tests pass as part of the 73-test suite.
+
+### Phase 7 — Image generation
+
+- Implemented `POST /api/images/generate` with a fixed free Pollinations endpoint, encoded prompts,
+  allowlisted 512/768/1024 sizes, 60-second timeout, image content-type/magic-byte checks and the
+  Phase 6 storage pipeline.
+- **Live verified** on 2026-11-24: a real 512px JPEG (17,277 bytes, SHA-256
+  `62ac8e0945cea1df95145fd773e2e7a2163e9ce1919112974af52289c20f9169`) was generated, persisted,
+  re-read after a backend restart and checksum-matched. 3 Phase 7 tests pass.
+
+### Phase 8 — Real-time web search and persistent tasks
+
+- Implemented `POST /api/search` with a fixed DuckDuckGo HTML provider, query/limit bounds, entity
+  decoding, redirect normalization and HTTP(S)-only result URLs.
+- Added optional `webSearch: true` to `POST /api/chat`; results are injected as system context and
+  returned for citations.
+- Added persistent `cloud_tasks` storage and create/list/get/update/cancel endpoints with owner
+  scoping and status validation.
+- **Live verified** on 2026-11-24: a real DuckDuckGo search returned Android developer results, and a
+  task created before a backend restart was still returned afterwards. 5 Phase 8 tests pass.
+
+### Backend test total
+
+`cd cloud && npm test`: **73 passed, 0 failed**. `npm run typecheck`, `npm run check:config` and
+`npm run check:deployment` pass. Android compilation/lint/emulator verification is delegated to
+Android CI because this environment has no local Android SDK. Live production gates (deployed HTTPS,
+GitHub OAuth consent, signing secrets, signed APK, physical device) remain outstanding.

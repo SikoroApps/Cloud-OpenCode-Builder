@@ -111,6 +111,30 @@ export function getDb(path: string): DatabaseSync {
       created_at INTEGER NOT NULL,
       expires_at INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS images (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      project_id TEXT,
+      filename TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      sha256 TEXT NOT NULL,
+      data_base64 TEXT NOT NULL,
+      source TEXT NOT NULL,
+      prompt TEXT,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS images_user_created ON images(user_id, created_at DESC);
+    CREATE TABLE IF NOT EXISTS cloud_tasks (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      project_id TEXT,
+      description TEXT NOT NULL,
+      status TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS cloud_tasks_user_created ON cloud_tasks(user_id, created_at DESC);
   `);
   return db;
 }
@@ -511,4 +535,118 @@ export function deleteBuildDownloadGrant(tokenHash: string): void {
   getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
     .prepare("DELETE FROM build_download_grants WHERE token_hash = ?")
     .run(tokenHash);
+}
+
+export function saveImage(input: {
+  id: string;
+  userId: string;
+  projectId: string | null;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+  dataBase64: string;
+  source: string;
+  prompt: string | null;
+  now: number;
+}): void {
+  getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite").prepare(
+    `INSERT INTO images
+      (id, user_id, project_id, filename, mime_type, size_bytes, sha256, data_base64, source, prompt, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    input.id,
+    input.userId,
+    input.projectId,
+    input.filename,
+    input.mimeType,
+    input.sizeBytes,
+    input.sha256,
+    input.dataBase64,
+    input.source,
+    input.prompt,
+    input.now,
+  );
+}
+
+export function findImage(userId: string, imageId: string): any | undefined {
+  return getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare(
+      `SELECT id, user_id AS userId, project_id AS projectId, filename, mime_type AS mimeType,
+              size_bytes AS sizeBytes, sha256, data_base64 AS dataBase64, source, prompt,
+              created_at AS createdAt
+       FROM images WHERE id = ? AND user_id = ?`,
+    )
+    .get(imageId, userId) as any;
+}
+
+export function listImages(userId: string, projectId: string | null, limit = 50): any[] {
+  const normalizedLimit = Math.max(1, Math.min(limit, 100));
+  if (projectId) {
+    return getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+      .prepare(
+        `SELECT id, user_id AS userId, project_id AS projectId, filename, mime_type AS mimeType,
+                size_bytes AS sizeBytes, sha256, source, prompt, created_at AS createdAt
+         FROM images WHERE user_id = ? AND project_id = ? ORDER BY created_at DESC LIMIT ?`,
+      )
+      .all(userId, projectId, normalizedLimit) as any[];
+  }
+  return getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare(
+      `SELECT id, user_id AS userId, project_id AS projectId, filename, mime_type AS mimeType,
+              size_bytes AS sizeBytes, sha256, source, prompt, created_at AS createdAt
+       FROM images WHERE user_id = ? ORDER BY created_at DESC LIMIT ?`,
+    )
+    .all(userId, normalizedLimit) as any[];
+}
+
+export function insertCloudTask(input: {
+  id: string;
+  userId: string;
+  projectId: string | null;
+  description: string;
+  status: string;
+  now: number;
+}): void {
+  getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite").prepare(
+    `INSERT INTO cloud_tasks (id, user_id, project_id, description, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(input.id, input.userId, input.projectId, input.description, input.status, input.now, input.now);
+}
+
+export function findCloudTask(userId: string, taskId: string): any | undefined {
+  return getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare(
+      `SELECT id, user_id AS userId, project_id AS projectId, description, status,
+              created_at AS createdAt, updated_at AS updatedAt
+       FROM cloud_tasks WHERE id = ? AND user_id = ?`,
+    )
+    .get(taskId, userId) as any;
+}
+
+export function listCloudTasks(userId: string, projectId: string | null, limit = 50): any[] {
+  const normalizedLimit = Math.max(1, Math.min(limit, 100));
+  if (projectId) {
+    return getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+      .prepare(
+        `SELECT id, user_id AS userId, project_id AS projectId, description, status,
+                created_at AS createdAt, updated_at AS updatedAt
+         FROM cloud_tasks WHERE user_id = ? AND project_id = ? ORDER BY created_at DESC LIMIT ?`,
+      )
+      .all(userId, projectId, normalizedLimit) as any[];
+  }
+  return getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare(
+      `SELECT id, user_id AS userId, project_id AS projectId, description, status,
+              created_at AS createdAt, updated_at AS updatedAt
+       FROM cloud_tasks WHERE user_id = ? ORDER BY created_at DESC LIMIT ?`,
+    )
+    .all(userId, normalizedLimit) as any[];
+}
+
+export function updateCloudTaskStatus(userId: string, taskId: string, status: string, now: number): any | undefined {
+  getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare("UPDATE cloud_tasks SET status = ?, updated_at = ? WHERE id = ? AND user_id = ?")
+    .run(status, now, taskId, userId);
+  return findCloudTask(userId, taskId);
 }

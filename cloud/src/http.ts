@@ -29,6 +29,13 @@ import {
   saveBuildDownloadGrant,
   findBuildDownloadGrant,
   deleteBuildDownloadGrant,
+  saveImage,
+  findImage,
+  listImages,
+  insertCloudTask,
+  findCloudTask,
+  listCloudTasks,
+  updateCloudTaskStatus,
 } from "./db.ts";
 import { loadConfig, type CloudConfig, type GithubConfig } from "./config.ts";
 import { getConfigReadiness, type ReadinessCloudContext } from "./readiness.ts";
@@ -41,6 +48,19 @@ import {
 } from "./files.ts";
 import { findZipFileByExtension } from "./zip.ts";
 import { verifyApkEvidence } from "./apk-evidence.ts";
+import {
+  createImageAnalysisService,
+  createImageGenerationService,
+  validateImageUpload,
+  ImageServiceError,
+  IMAGE_GENERATION_SIZES,
+  MAX_IMAGE_BYTES,
+  type ImageAnalysisService,
+  type ImageGenerationService,
+  type ImageGenerationSize,
+} from "./images.ts";
+import { createWebSearchService, WebSearchError, type WebSearchService } from "./web-search.ts";
+import { cloudTaskDto, isCloudTaskStatus, validateTaskDescription } from "./tasks.ts";
 
 export interface AuthUser { id: string; email: string }
 
@@ -50,6 +70,9 @@ export interface ApiDependencies {
   aiFilePlanner: AiFilePlanner;
   publicBaseUrl?: string;
   readinessCloud?: ReadinessCloudContext;
+  imageAnalysisService?: ImageAnalysisService;
+  imageGenerationService?: ImageGenerationService;
+  webSearchService?: WebSearchService;
 }
 
 class ApiRequestError extends Error {
@@ -64,6 +87,8 @@ class ApiRequestError extends Error {
   }
 }
 
+const MAX_IMAGE_JSON_BYTES = Math.ceil(MAX_IMAGE_BYTES * 4 / 3) + 100_000;
+
 export function createApiDependencies(config: CloudConfig = loadConfig()): ApiDependencies {
   return {
     githubConfig: config.github,
@@ -75,6 +100,9 @@ export function createApiDependencies(config: CloudConfig = loadConfig()): ApiDe
       openRouterApiKeySet: Boolean(config.openRouterApiKey),
       openCodeApiKeySet: Boolean(config.openCodeApiKey),
     },
+    imageAnalysisService: createImageAnalysisService({ openRouterApiKey: config.openRouterApiKey }),
+    imageGenerationService: createImageGenerationService(),
+    webSearchService: createWebSearchService(),
   };
 }
 
@@ -171,15 +199,222 @@ export async function handleApiRequest(
     return;
   }
   if (req.method === "POST" && path === "/api/chat") {
-    const body = await readJson(req);
-    const sessionKey = String(body?.sessionKey || "default");
-    const content = String(body?.content || "");
-    if (!content.trim()) {
-      sendJson(res, 400, { error: "invalid_request" });
+    try {
+      const body = await readJson(req);
+      const sessionKey = String(body?.sessionKey || "default");
+      const content = String(body?.content || "");
+      if (!content.trim() || content.length > 20_000 || sessionKey.length > 200) {
+        sendJson(res, 400, { error: "invalid_request" });
+        return;
+      }
+      const webSearchService = deps.webSearchService ?? createWebSearchService();
+      const search = body?.webSearch === true
+        ? await webSearchService.search({ query: content, limit: 5 })
+        : undefined;
+      const { userMessage, assistantMessage, ai } = await runAssistantTurn({
+        userId: auth.userId,
+        sessionKey,
+        content,
+        search: search ? { query: search.query, results: search.results } : undefined,
+      });
+      sendJson(res, 200, {
+        userMessage,
+        assistantMessage,
+        ai,
+        webSearch: search ? { provider: search.provider, results: search.results } : null,
+      });
+    } catch (error) {
+      sendFeatureError(res, error);
+    }
+    return;
+  }
+  if (req.method === "POST" && path === "/api/images") {
+    try {
+      const body = await readJson(req, MAX_IMAGE_JSON_BYTES);
+      const projectId = optionalProjectId(auth.userId, body?.projectId);
+      const validated = validateImageUpload({
+        dataBase64: body?.dataBase64,
+        mimeType: body?.mimeType,
+        filename: body?.filename,
+      });
+      const imageId = randomUUID();
+      saveImage({
+        id: imageId,
+        userId: auth.userId,
+        projectId,
+        filename: validated.filename,
+        mimeType: validated.mimeType,
+        sizeBytes: validated.sizeBytes,
+        sha256: validated.sha256,
+        dataBase64: validated.dataBase64,
+        source: "upload",
+        prompt: null,
+        now: Date.now(),
+      });
+      sendJson(res, 201, { image: imageDto(findImage(auth.userId, imageId)) });
+    } catch (error) {
+      sendFeatureError(res, error);
+    }
+    return;
+  }
+  if (req.method === "GET" && path === "/api/images") {
+    const images = listImages(auth.userId, url.searchParams.get("projectId"), Number(url.searchParams.get("limit") || 50));
+    sendJson(res, 200, { images: images.map(imageDto) });
+    return;
+  }
+  if (req.method === "POST" && path === "/api/images/generate") {
+    try {
+      const body = await readJson(req);
+      const prompt = String(body?.prompt || "").trim();
+      if (!prompt || prompt.length > 2000) throw new ApiRequestError(400, "invalid_request");
+      const size = Number(body?.size ?? 1024) as ImageGenerationSize;
+      if (!(IMAGE_GENERATION_SIZES as readonly number[]).includes(size)) {
+        throw new ApiRequestError(400, "invalid_image_size");
+      }
+      const projectId = optionalProjectId(auth.userId, body?.projectId);
+      const generator = deps.imageGenerationService ?? createImageGenerationService();
+      const generated = await generator.generate({ prompt, size });
+      const validated = validateImageUpload({
+        dataBase64: generated.bytes.toString("base64"),
+        mimeType: generated.mimeType,
+        filename: `generated-${Date.now()}.${generated.mimeType.split("/")[1] === "jpeg" ? "jpg" : generated.mimeType.split("/")[1]}`,
+      });
+      const imageId = randomUUID();
+      saveImage({
+        id: imageId,
+        userId: auth.userId,
+        projectId,
+        filename: validated.filename,
+        mimeType: validated.mimeType,
+        sizeBytes: validated.sizeBytes,
+        sha256: validated.sha256,
+        dataBase64: validated.dataBase64,
+        source: "generated",
+        prompt,
+        now: Date.now(),
+      });
+      sendJson(res, 201, { image: imageDto(findImage(auth.userId, imageId)), prompt, size });
+    } catch (error) {
+      sendFeatureError(res, error);
+    }
+    return;
+  }
+  const imageContentMatch = path.match(/^\/api\/images\/([^/]+)\/content$/);
+  if (req.method === "GET" && imageContentMatch) {
+    try {
+      const image = findImage(auth.userId, decodeURIComponent(imageContentMatch[1]));
+      if (!image) throw new ApiRequestError(404, "image_not_found");
+      const bytes = Buffer.from(String(image.dataBase64), "base64");
+      res.writeHead(200, {
+        "Content-Type": String(image.mimeType),
+        "Content-Length": bytes.length,
+        "Cache-Control": "private, max-age=300",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": `inline; filename="${String(image.filename).replace(/[^A-Za-z0-9._-]/g, "_")}"`,
+      });
+      res.end(bytes);
+    } catch (error) {
+      sendFeatureError(res, error);
+    }
+    return;
+  }
+  const imageAnalyzeMatch = path.match(/^\/api\/images\/([^/]+)\/analyze$/);
+  if (req.method === "POST" && imageAnalyzeMatch) {
+    try {
+      const image = findImage(auth.userId, decodeURIComponent(imageAnalyzeMatch[1]));
+      if (!image) throw new ApiRequestError(404, "image_not_found");
+      const body = await readJson(req);
+      const prompt = String(body?.prompt || "Describe this image and note anything relevant for an Android app project.").trim();
+      if (!prompt || prompt.length > 4000) throw new ApiRequestError(400, "invalid_request");
+      const analyzer = deps.imageAnalysisService ?? createImageAnalysisService();
+      const analysis = await analyzer.analyze({
+        bytes: Buffer.from(String(image.dataBase64), "base64"),
+        mimeType: String(image.mimeType),
+        prompt,
+      });
+      sendJson(res, 200, {
+        imageId: String(image.id),
+        model: analysis.model,
+        content: analysis.content,
+        prompt,
+      });
+    } catch (error) {
+      sendFeatureError(res, error);
+    }
+    return;
+  }
+  const imageMatch = path.match(/^\/api\/images\/([^/]+)$/);
+  if (req.method === "GET" && imageMatch) {
+    const image = findImage(auth.userId, decodeURIComponent(imageMatch[1]));
+    if (!image) {
+      sendJson(res, 404, { error: "image_not_found" });
       return;
     }
-    const { userMessage, assistantMessage, ai } = await runAssistantTurn({ userId: auth.userId, sessionKey, content });
-    sendJson(res, 200, { userMessage, assistantMessage, ai });
+    sendJson(res, 200, { image: imageDto(image) });
+    return;
+  }
+  if (req.method === "POST" && path === "/api/search") {
+    try {
+      const body = await readJson(req);
+      const searchService = deps.webSearchService ?? createWebSearchService();
+      const result = await searchService.search({ query: body?.query, limit: body?.limit });
+      sendJson(res, 200, result);
+    } catch (error) {
+      sendFeatureError(res, error);
+    }
+    return;
+  }
+  if (req.method === "POST" && path === "/api/tasks") {
+    try {
+      const body = await readJson(req);
+      const description = validateTaskDescription(body?.description);
+      const projectId = optionalProjectId(auth.userId, body?.projectId);
+      const taskId = randomUUID();
+      insertCloudTask({
+        id: taskId,
+        userId: auth.userId,
+        projectId,
+        description,
+        status: "queued",
+        now: Date.now(),
+      });
+      sendJson(res, 201, { task: cloudTaskDto(findCloudTask(auth.userId, taskId)) });
+    } catch (error) {
+      sendFeatureError(res, error);
+    }
+    return;
+  }
+  if (req.method === "GET" && path === "/api/tasks") {
+    const tasks = listCloudTasks(
+      auth.userId,
+      url.searchParams.get("projectId"),
+      Number(url.searchParams.get("limit") || 50),
+    );
+    sendJson(res, 200, { tasks: tasks.map(cloudTaskDto) });
+    return;
+  }
+  const taskMatch = path.match(/^\/api\/tasks\/([^/]+)$/);
+  if (taskMatch && (req.method === "GET" || req.method === "PATCH" || req.method === "DELETE")) {
+    try {
+      const taskId = decodeURIComponent(taskMatch[1]);
+      const task = findCloudTask(auth.userId, taskId);
+      if (!task) throw new ApiRequestError(404, "task_not_found");
+      if (req.method === "GET") {
+        sendJson(res, 200, { task: cloudTaskDto(task) });
+        return;
+      }
+      if (req.method === "DELETE") {
+        const updated = updateCloudTaskStatus(auth.userId, taskId, "cancelled", Date.now());
+        sendJson(res, 200, { task: cloudTaskDto(updated) });
+        return;
+      }
+      const body = await readJson(req);
+      if (!isCloudTaskStatus(body?.status)) throw new ApiRequestError(400, "invalid_task_status");
+      const updated = updateCloudTaskStatus(auth.userId, taskId, body.status, Date.now());
+      sendJson(res, 200, { task: cloudTaskDto(updated) });
+    } catch (error) {
+      sendFeatureError(res, error);
+    }
     return;
   }
   if (req.method === "GET" && path === "/api/github/oauth/start") {
@@ -1004,6 +1239,51 @@ function requireGithubAccess(userId: string, deps: ApiDependencies): { token: st
   return { token, login: String(connection.login), scopes: String(connection.scopes || "") };
 }
 
+function sendFeatureError(res: ServerResponse, error: unknown): void {
+  if (error instanceof ApiRequestError) {
+    sendJson(res, error.status, { error: error.code });
+    return;
+  }
+  if (error instanceof ImageServiceError) {
+    sendJson(res, error.status, { error: error.code });
+    return;
+  }
+  if (error instanceof WebSearchError) {
+    sendJson(res, error.status, { error: error.code });
+    return;
+  }
+  const message = String((error as Error)?.message || "");
+  if (message === "invalid_task_description" || message === "invalid_task_status") {
+    sendJson(res, 400, { error: message });
+    return;
+  }
+  throw error;
+}
+
+function optionalProjectId(userId: string, raw: unknown): string | null {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const projectId = String(raw);
+  if (!findProjectById(userId, projectId)) throw new ApiRequestError(404, "project_not_found");
+  return projectId;
+}
+
+function imageDto(image: any): Record<string, unknown> {
+  if (!image) return {};
+  return {
+    id: String(image.id),
+    projectId: image.projectId ? String(image.projectId) : null,
+    filename: String(image.filename),
+    mimeType: String(image.mimeType),
+    sizeBytes: Number(image.sizeBytes),
+    sha256: String(image.sha256),
+    source: String(image.source),
+    prompt: image.prompt ? String(image.prompt) : null,
+    createdAt: Number(image.createdAt),
+    contentUrl: `/api/images/${encodeURIComponent(String(image.id))}/content`,
+    dataUrl: null,
+  };
+}
+
 function sendGithubError(res: ServerResponse, error: unknown): void {
   if (error instanceof ApiRequestError) {
     sendJson(res, error.status, { error: error.code });
@@ -1331,12 +1611,22 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.end(payload);
 }
 
-async function readJson(req: IncomingMessage): Promise<any> {
+async function readJson(req: IncomingMessage, maxBytes = 1_000_000): Promise<any> {
   const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(Buffer.from(chunk));
+  let total = 0;
+  for await (const chunk of req) {
+    const buffer = Buffer.from(chunk);
+    total += buffer.length;
+    if (total > maxBytes) throw new ApiRequestError(413, "payload_too_large");
+    chunks.push(buffer);
+  }
   const raw = Buffer.concat(chunks).toString("utf8");
   if (!raw) return {};
-  return JSON.parse(raw);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new ApiRequestError(400, "invalid_json");
+  }
 }
 
 function createHashHex(value: string): string {

@@ -23,7 +23,13 @@ Health check: `GET http://127.0.0.1:8080/health` -> `{"status":"ok"}`.
 | `CLOUD_DB_PATH` | no | SQLite file path; must be on a persistent volume in production. |
 | `OPENCODE_BASE_URL` | no | OpenCode API base URL (default `http://127.0.0.1:49374`). |
 | `OPENCODE_API_KEY` | for OpenCode models | OpenCode service password/API key. |
-| `OPENROUTER_API_KEY` | for OpenRouter models | OpenRouter API key. |
+| `OPENROUTER_API_KEY` | for OpenRouter models and image understanding | OpenRouter API key. |
+| `IMAGE_UNDERSTANDING_MODEL` | no | Free OpenRouter vision model (default `google/gemma-3-27b-it:free`). |
+| `IMAGE_GENERATION_URL` | no | Fixed image-generation provider base URL (default Pollinations prompt endpoint). |
+| `WEB_SEARCH_ENDPOINT` | no | Fixed search provider endpoint (default DuckDuckGo HTML). |
+| `CLOUD_AI_STUB` | tests only | Deterministic text/image-analysis stub. Never enable in production. |
+| `CLOUD_IMAGE_GENERATION_STUB` | tests only | Deterministic 1×1 PNG image-generation stub. |
+| `CLOUD_WEB_SEARCH_STUB` | tests only | Deterministic search-results stub. |
 
 Never put keys in source, Dockerfiles, git, logs or client builds. Supply them as deployment secrets.
 

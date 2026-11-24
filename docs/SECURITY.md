@@ -1,8 +1,36 @@
 # Security baseline
 
-- Never commit API keys, passwords, signing keys or tokens.
-- Use secure secret storage (GitHub Actions secrets / cloud secret manager).
-- Apply least-privilege GitHub permissions.
-- Protect user repositories and project data.
-- Never expose private credentials in logs.
+- Never commit API keys, passwords, signing keys, OAuth secrets or tokens.
+- Use secure secret storage (GitHub Actions secrets / cloud secret manager). Backend configuration is
+  environment-only.
+- Apply least-privilege GitHub permissions and scopes.
+- Protect user repositories and project data; every project, image and task operation is scoped to
+  the authenticated user.
+- Never expose private credentials in logs or error responses. Provider errors are mapped to safe
+  codes.
 - CI scans the built debug APK for server secret markers.
+
+## Implemented controls
+
+- GitHub OAuth uses one-time hashed state with a 10-minute expiry; tokens are exchanged server-side,
+  encrypted with AES-256-GCM and never returned to Android.
+- APK artifact downloads use a 10-minute, single-use, hash-only grant. Authenticated artifact access
+  still checks build ownership and successful conclusion.
+- Project file editing rejects protected paths (`.env*`, `.github/*`, Gradle/keystore properties,
+  keystores, certificates and Firebase config) and secret-bearing content.
+- Image upload validates magic bytes (not only the declared MIME type), caps input at 5 MiB and
+  sanitizes filenames. Image content is served with `X-Content-Type-Options: nosniff`.
+- Image generation uses a fixed provider host, allowlisted sizes and encoded prompts, preventing
+  SSRF and query injection.
+- Web search uses a fixed provider host, bounded queries, HTTP(S)-only normalized result URLs and
+  plain-text parsing.
+- JSON request bodies are bounded (1 MiB default; a larger bound only for image upload).
+- Task descriptions are length-bounded data and are never executed as shell commands.
+- No new npm dependency was added for Phases 6–8.
+
+## Known follow-on hardening
+
+- Per-IP/per-user rate limiting is not yet implemented for auth, chat, search or generation.
+- A dependency vulnerability audit should run in an environment with registry access.
+- Live production secrets, HTTPS hosting and a signed release remain external requirements; see
+  `docs/MASTER_COMPLETION_TRACKER.md`.
