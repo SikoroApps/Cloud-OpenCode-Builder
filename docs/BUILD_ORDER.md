@@ -116,32 +116,40 @@ Exit criteria:
   device gates pass. Independent hardening and automated-test gates are complete: 38 backend tests
   and CI green on `45408308794` (Cloud Backend) and `45408308675` (Android).
 
-## Batch 5.1 — Deployment readiness (IN PROGRESS)
+## Batch 5.1 — Deployment readiness (IMPLEMENTED / AUTOMATED TESTS; LIVE BLOCKED)
 
 - Container deployment contract, persistent SQLite volume and HTTPS health checks.
-- Masked deployment preflight checker and CI step.
+- Masked deployment preflight checker and CI step; no live hosting or HTTPS domain is configured.
 - See `docs/PHASE_5.md` and `docs/DEPLOYMENT.md`.
 
-## Batch 5.2 — GitHub OAuth (NOT STARTED)
+## Batch 5.2 — GitHub OAuth (IMPLEMENTED / AUTOMATED TESTS; LIVE BLOCKED)
 
-- Real browser authorization, state/callback validation and encrypted token storage.
+- Real browser authorization flow, one-time state/callback validation and AES-256-GCM token storage.
 - Live OAuth cannot be claimed without a real OAuth App and browser consent.
 
-## Batch 5.3 — GitHub repository connection (NOT STARTED)
+## Batch 5.3 — GitHub repository connection (IMPLEMENTED / AUTOMATED TESTS; LIVE BLOCKED)
 
-- Authenticated repository listing, connect/create and permission verification.
+- Authenticated repository listing, connect/create and write-permission verification.
+- No live repository was connected because OAuth consent is unavailable here.
 
-## Batch 5.4 — Real GitHub Actions orchestration (NOT STARTED)
+## Batch 5.4 — Real GitHub Actions orchestration (IMPLEMENTED / AUTOMATED TESTS; LIVE BLOCKED)
 
-- Application-dispatched runs, real run IDs, job conclusions and failed-step logs.
+- Application-dispatched runs, real run IDs, job conclusions and failed-step verification.
+- Dispatch acceptance is never reported as a successful build; no live run was dispatched here.
 
-## Batch 5.5 — Signed APK delivery (NOT STARTED)
+## Batch 5.5 — Signed APK delivery (IMPLEMENTED / AUTOMATED TESTS; LIVE BLOCKED)
 
-- GitHub-hosted signed release builds, APK signature/checksum evidence and browser download links.
+- GitHub-hosted signed release builds, `apksigner`/`aapt`/SHA-256 evidence and browser download links.
+- No real signed APK was built or downloaded here; signing secrets and a live release run are required.
 
-## Batch 5.6 — Real-device verification (NOT STARTED)
+## Batch 5.6 — Real-device verification (TOOLING IMPLEMENTED; PHYSICAL DEVICE BLOCKED)
 
-- Installation and launch evidence from a physical Android device when one is available.
+- Physical-device checker requires verified `adb install -r`, `pm path` and launcher launch evidence.
+- No `adb` or physical device is available here; simulated `adb` tests are not device evidence.
+
+All Phase 5 batches were verified by 60 backend tests and green CI on commit `417cc2b`
+(`Cloud Backend CI` `45443444610`, `Android CI` `45443444436`). Those runs verify code and
+mocked/simulated flows only; see `docs/PHASE_5.md` for the complete live-blocker list.
 
 ## Advanced features (planned, after Phase 5)
 

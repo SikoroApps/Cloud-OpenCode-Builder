@@ -8,7 +8,7 @@ physical-device claim is made unless actual evidence is recorded here.
 
 | Batch | Scope | Status |
 | --- | --- | --- |
-| 5.1 | Deployment readiness | IN PROGRESS |
+| 5.1 | Deployment readiness | IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED |
 | 5.2 | GitHub OAuth | IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED |
 | 5.3 | GitHub repository connection | IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED |
 | 5.4 | Real GitHub Actions orchestration | IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED |
