@@ -1,0 +1,30 @@
+services:
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/sikoroapps/cloud-opencode-backend:latest}
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - backend-data:/data
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      CLOUD_DOMAIN: ${CLOUD_DOMAIN:?CLOUD_DOMAIN must be set in deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - backend
+
+volumes:
+  backend-data:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,35 @@
+name: Publish backend image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-backend-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push deployable image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./cloud
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/cloud-opencode-backend:latest
+            ghcr.io/${{ github.repository_owner }}/cloud-opencode-backend:sha-${{ github.sha }}

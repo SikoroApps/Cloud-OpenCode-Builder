@@ -236,6 +236,11 @@ Started from the unchanged Phase 4 checkpoint `d136bda`. Detailed per-batch evid
   and `npm run check:deployment` all passed.
 - Current environment has no live deployment, HTTPS domain, OAuth values, AI key or health URL;
   the checker reports these as blockers without printing values.
+- Safe deployment artifacts added without external credentials: a GHCR publish workflow using the
+  built-in `GITHUB_TOKEN`, a Compose/Caddy single-host HTTPS shape with persistent SQLite, and
+  `deploy/.env.example` with variable names only. YAML parsed successfully locally. No live host or
+  deployment is claimed; the exact missing items are a Docker host, DNS domain and configured
+  secrets in `deploy/.env`.
 
 ### Batch 5.2 evidence
 

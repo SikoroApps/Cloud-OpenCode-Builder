@@ -33,6 +33,33 @@ docker run --rm -p 8080:8080 \
 Use the platform's secret store for every `-e` value. Do not write a `.env` file into a public
 repository, Docker layer, CI log or client build.
 
+## Deployable image and single-host HTTPS setup
+
+The `Publish backend image` GitHub Actions workflow builds `cloud/Dockerfile` on every push to
+`main` and pushes a deployable container to GHCR using the built-in `GITHUB_TOKEN` (no external
+credential):
+
+```text
+ghcr.io/<owner>/cloud-opencode-backend:latest
+ghcr.io/<owner>/cloud-opencode-backend:sha-<commit>
+```
+
+For a single Linux host with Docker Compose and a public DNS domain, `deploy/docker-compose.yml`
+and `deploy/Caddyfile` provide the complete runtime shape: the backend listens only on
+`127.0.0.1:8080`, SQLite persists in the `backend-data` volume, and Caddy terminates HTTPS with an
+automatic certificate. Simplest setup:
+
+1. Point the domain's A/AAAA records at the host and open ports 80/443.
+2. Copy `deploy/.env.example` to `deploy/.env` on the host and fill in the values there using the
+   platform's secret store. `deploy/.env` is ignored by Git and must never be committed.
+3. From the host's `deploy` directory: `docker compose up -d`.
+4. Verify: `curl -fsS https://<CLOUD_DOMAIN>/health`.
+5. Run `npm run check:deployment` against the deployed environment; it prints only booleans and
+   blocker codes.
+
+This is a deployment shape and a published artifact, **not** a claim that a live deployment exists.
+A host, DNS domain and configured secrets are still required, and no credential is requested here.
+
 ## Environment variables
 
 | Variable | Purpose |

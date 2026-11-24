@@ -111,6 +111,9 @@ physical device is implemented around the dependency and recorded as blocked, ne
 evidence. No live OAuth, signed APK or device claim is made without actual evidence.
 
 All six batches (5.1–5.6) are implemented with 60 backend tests passing and both CI workflows green on
-implementation commit `417cc2b` (`Cloud Backend CI` `45443444610`, `Android CI` `45443444436`). Live
-OAuth, a deployed HTTPS backend, an application-dispatched GitHub Actions run, a real signed APK and
-physical-device verification remain externally blocked; no such result is claimed without evidence.
+implementation commit `417cc2b` (`Cloud Backend CI` `45443444610`, `Android CI` `45443444436`). A
+GHCR image-publish workflow and a Compose/Caddy single-host HTTPS deployment shape are provided in
+`.github/workflows/publish-backend-image.yml` and `deploy/`; they are artifacts, not a live deployment.
+Live OAuth, a deployed HTTPS backend, an application-dispatched GitHub Actions run, a real signed
+APK and physical-device verification remain externally blocked; no such result is claimed without
+evidence.

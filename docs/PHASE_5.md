@@ -47,10 +47,21 @@ See `docs/DEPLOYMENT.md` for the exact deployment contract and safe verification
   non-HTTPS base URL, unconfigured OAuth, missing AI key and missing HTTPS health URL.
 - `git diff --check`: passed.
 
+### Additional safe deployment artifacts
+
+- `.github/workflows/publish-backend-image.yml` publishes a deployable image to GHCR on `main` using
+  only the built-in `GITHUB_TOKEN`; no external credential is required. Image tags: `:latest` and
+  `:sha-<commit>`.
+- `deploy/docker-compose.yml`, `deploy/Caddyfile` and `deploy/.env.example` provide a single-host
+  HTTPS deployment shape with a persistent SQLite volume and a loopback-only backend port.
+- `docs/DEPLOYMENT.md` records the exact five-step host setup. These artifacts are not a live
+  deployment claim.
+
 ### Blocked
 
 Permanent hosting, an HTTPS domain and provider secrets are external dependencies. They are not
-invented. The checker reports them as blockers without printing values.
+invented. The checker reports them as blockers without printing values. A host with Docker Compose,
+a public DNS domain and a filled `deploy/.env` are the exact missing requirements for Batch 5.1.
 
 ## Batch 5.2 — GitHub OAuth
 
