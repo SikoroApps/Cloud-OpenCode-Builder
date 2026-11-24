@@ -13,6 +13,7 @@ interface CloudApiClient {
     fun baseUrl(): String
     fun allowedHosts(): Set<String>
     fun isSecureUrl(url: String): Boolean
+    fun health(): Result<Unit>
     fun register(email: String, password: String): Result<CloudToken>
     fun login(email: String, password: String): Result<CloudToken>
     fun logout(token: String): Result<Unit>
@@ -31,6 +32,11 @@ class CloudApiClientImpl(
         .build()
 
     override fun baseUrl(): String = configuredBaseUrl
+
+    override fun health(): Result<Unit> = runCatching {
+        request("GET", "/health", null, null)
+        Unit
+    }
 
     override fun allowedHosts(): Set<String> = configuredAllowedHosts
 

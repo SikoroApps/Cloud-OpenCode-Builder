@@ -15,10 +15,16 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // Public, non-secret endpoint only. Empty means the cloud backend is not configured.
-        buildConfigField("String", "CLOUD_BASE_URL", "\"\"")
+        // Public, non-secret endpoints only. Empty means the cloud backend is not configured.
+        val cloudBaseUrl = (System.getenv("CLOUD_BASE_URL") ?: "")
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+        val cloudHostAllowlist = (System.getenv("CLOUD_HOST_ALLOWLIST") ?: "")
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+        buildConfigField("String", "CLOUD_BASE_URL", "\"$cloudBaseUrl\"")
         // Optional comma-separated HTTPS host allowlist. Empty permits any HTTPS host.
-        buildConfigField("String", "CLOUD_HOST_ALLOWLIST", "\"\"")
+        buildConfigField("String", "CLOUD_HOST_ALLOWLIST", "\"$cloudHostAllowlist\"")
     }
 
     buildTypes {

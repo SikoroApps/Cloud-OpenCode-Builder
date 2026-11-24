@@ -168,3 +168,113 @@ jobs:
           name: cloud-opencode-device-test-results
           path: android/app/build/reports/androidTests/connected/**
           if-no-files-found: warn
+
+  https-integration:
+    name: Android HTTPS backend integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Set up Gradle build cache
+        uses: gradle/actions/setup-gradle@v4
+      - name: Locate Android SDK command-line tools
+        id: sdk
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ANDROID_HOME:-}" || { echo "ANDROID_HOME is not set"; exit 1; }
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -n 1)"
+          test -n "$sdkmanager" || { echo "sdkmanager not found"; exit 1; }
+          echo "path=$sdkmanager" >> "$GITHUB_OUTPUT"
+          echo "$(dirname "$sdkmanager")" >> "$GITHUB_PATH"
+      - name: Install SDK platform and emulator image
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +o pipefail
+          yes | "${{ steps.sdk.outputs.path }}" --licenses > /dev/null
+          set -o pipefail
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools" "system-images;android-35;google_apis;x86_64"
+      - name: Enable KVM access for emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo chmod 666 /dev/kvm
+      - name: Start backend with stubbed AI
+        working-directory: cloud
+        run: |
+          set -euo pipefail
+          export CLOUD_DB_PATH=/tmp/cloud-opencode-https-integration.sqlite
+          export CLOUD_AI_STUB=1
+          export PORT=8080
+          export HOST=127.0.0.1
+          nohup node --experimental-strip-types src/index.ts > /tmp/cloud-opencode-https-backend.log 2>&1 &
+          echo $! > /tmp/cloud-opencode-https-backend.pid
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/health > /tmp/cloud-opencode-https-health.json; then
+              cat /tmp/cloud-opencode-https-health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/cloud-opencode-https-backend.log
+          exit 1
+      - name: Expose backend over temporary HTTPS tunnel
+        run: |
+          set -euo pipefail
+          curl -fsSL -o cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod +x cloudflared
+          nohup ./cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8080 > /tmp/cloudflared.log 2>&1 &
+          echo $! > /tmp/cloudflared.pid
+          TUNNEL_URL=""
+          for attempt in $(seq 1 60); do
+            TUNNEL_URL="$(grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' /tmp/cloudflared.log | head -n 1 || true)"
+            if [ -n "$TUNNEL_URL" ] && curl -fsS "$TUNNEL_URL/health" > /tmp/cloudflared-health.json; then
+              break
+            fi
+            TUNNEL_URL=""
+            sleep 2
+          done
+          if [ -z "$TUNNEL_URL" ]; then
+            cat /tmp/cloudflared.log
+            exit 1
+          fi
+          TUNNEL_HOST="$(printf '%s' "$TUNNEL_URL" | sed -E 's#https://([^/]+)/?#\1#')"
+          echo "HTTPS backend: $TUNNEL_URL"
+          echo "CLOUD_BASE_URL=$TUNNEL_URL" >> "$GITHUB_ENV"
+          echo "CLOUD_HOST_ALLOWLIST=$TUNNEL_HOST" >> "$GITHUB_ENV"
+      - name: Run Android HTTPS integration test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-linux-hw-accel: false
+          working-directory: android
+          script: ./gradlew connectedDebugAndroidTest --tests 'com.sikorokoro44.cloudopencode.HttpsBackendIntegrationTest' --no-daemon
+      - name: Upload HTTPS integration test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-opencode-https-integration-results
+          path: android/app/build/reports/androidTests/connected/**
+          if-no-files-found: warn
+      - name: Stop temporary services
+        if: always()
+        run: |
+          for pidfile in /tmp/cloudflared.pid /tmp/cloud-opencode-https-backend.pid; do
+            if [ -f "$pidfile" ]; then
+              kill "$(cat "$pidfile")" 2>/dev/null || true
+            fi
+          done
