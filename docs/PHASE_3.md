@@ -112,6 +112,8 @@ No client ID, secret, token or encryption key is present in this repository.
 - `cd cloud && npm test`: **24 passed, 0 failures** (8 Phase 2 + 16 Phase 3 tests).
 - Tests cover workflow dispatch payload/filtering, mocked queued → in_progress → success reporting,
   failure reporting with failed steps, and token non-exposure.
+- CI on commit `dc2aea8`: `Cloud Backend CI` `45357090689` **success** and `Android CI`
+  `45357090706` **success** (all three jobs, including HTTPS integration).
 - Live GitHub Actions runs were not triggered; the OAuth credentials from Batch 3.1 are required.
 
 ### Remaining batch

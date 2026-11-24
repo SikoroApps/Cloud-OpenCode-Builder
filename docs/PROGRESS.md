@@ -147,7 +147,9 @@ Status: **BATCHES 3.1–3.4 IMPLEMENTED, LIVE VERIFICATION BLOCKED**; started fr
 - Controlled tests verify queued → in_progress → success and queued → in_progress → failure paths;
   success is only recorded after a completed successful GitHub run.
 - Android client gained build methods; HTTPS integration checks unconfigured build endpoints fail
-  safely. CI evidence for this batch is pending the commit push.
+  safely.
+- CI on commit `dc2aea8`: `Cloud Backend CI` `45357090689` **success** and `Android CI`
+  `45357090706` **success** (all three jobs, including HTTPS integration).
 
 ### Blocked
 

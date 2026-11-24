@@ -62,7 +62,8 @@ Exit criteria:
 
 - Trigger Android builds through GitHub Actions.
 - Monitor workflow runs and progress; retrieve logs and report only actual results.
-- Backend tests: 24 passed locally; CI evidence recorded in `docs/PROGRESS.md` after push.
+- Backend tests: 24 passed locally; CI green on `45357090689` (Cloud Backend) and `45357090706`
+  (Android).
 
 ## Batch 3.5 — APK delivery and signed release preparation (BLOCKED BY 3.4 LIVE VERIFICATION)
 
