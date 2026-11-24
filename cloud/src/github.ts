@@ -59,6 +59,20 @@ export interface WorkflowJob {
   steps: WorkflowJobStep[];
 }
 
+export interface WorkflowArtifact {
+  id: number;
+  name: string;
+  sizeInBytes: number;
+  expired: boolean;
+  createdAt: number;
+  htmlUrl: string;
+}
+
+export interface DownloadedArtifact {
+  bytes: Uint8Array;
+  suggestedFilename: string;
+}
+
 export interface GithubService {
   authorizationUrl(state: string): string;
   exchangeCode(code: string): Promise<GithubTokenExchange>;
@@ -81,6 +95,8 @@ export interface GithubService {
   listWorkflowRuns(accessToken: string, input: { owner: string; repo: string; workflowPath: string; ref: string; createdAfter: number }): Promise<WorkflowRun[]>;
   getWorkflowRun(accessToken: string, input: { owner: string; repo: string; runId: number }): Promise<WorkflowRun>;
   listWorkflowJobs(accessToken: string, input: { owner: string; repo: string; runId: number }): Promise<WorkflowJob[]>;
+  listWorkflowArtifacts(accessToken: string, input: { owner: string; repo: string; runId: number }): Promise<WorkflowArtifact[]>;
+  downloadWorkflowArtifact(accessToken: string, input: { owner: string; repo: string; artifactId: number }): Promise<DownloadedArtifact>;
 }
 
 export interface EncryptedToken {
@@ -488,6 +504,72 @@ export function createGithubService(
       }
       if (!Array.isArray(payload?.jobs)) throw new GithubServiceError("workflow_jobs_invalid_response");
       return payload.jobs.map(mapWorkflowJob);
+    },
+
+    async listWorkflowArtifacts(accessToken: string, input: { owner: string; repo: string; runId: number }): Promise<WorkflowArtifact[]> {
+      const url = `${config.apiBaseUrl}/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/actions/runs/${input.runId}/artifacts`;
+      let response: Response;
+      try {
+        response = await fetchImpl(url, { headers: apiHeaders(accessToken) });
+      } catch {
+        throw new GithubServiceError("workflow_artifacts_transport_failed");
+      }
+      if (!response.ok) throw new GithubServiceError("workflow_artifacts_failed", response.status);
+      let payload: any;
+      try {
+        payload = await response.json();
+      } catch {
+        throw new GithubServiceError("workflow_artifacts_invalid_response");
+      }
+      if (!Array.isArray(payload?.artifacts)) throw new GithubServiceError("workflow_artifacts_invalid_response");
+      return payload.artifacts
+        .filter((artifact: any) => Number.isFinite(Number(artifact?.id)))
+        .map((artifact: any) => ({
+          id: Number(artifact.id),
+          name: String(artifact.name || ""),
+          sizeInBytes: Number(artifact.size_in_bytes || 0),
+          expired: Boolean(artifact.expired),
+          createdAt: Date.parse(String(artifact.created_at || "")) || 0,
+          htmlUrl: String(artifact.html_url || artifact.archive_download_url || ""),
+        }));
+    },
+
+    async downloadWorkflowArtifact(accessToken: string, input: { owner: string; repo: string; artifactId: number }): Promise<DownloadedArtifact> {
+      const url = `${config.apiBaseUrl}/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/actions/artifacts/${input.artifactId}/zip`;
+      let response: Response;
+      try {
+        response = await fetchImpl(url, {
+          headers: { ...apiHeaders(accessToken) },
+          redirect: "manual",
+        });
+      } catch {
+        throw new GithubServiceError("workflow_artifact_download_transport_failed");
+      }
+      let finalResponse = response;
+      if ([301, 302, 303, 307, 308].includes(response.status)) {
+        const location = response.headers.get("location");
+        if (!location || !/^https:\/\//.test(location)) {
+          throw new GithubServiceError("workflow_artifact_redirect_invalid");
+        }
+        try {
+          finalResponse = await fetchImpl(location);
+        } catch {
+          throw new GithubServiceError("workflow_artifact_download_transport_failed");
+        }
+      }
+      if (!finalResponse.ok) throw new GithubServiceError("workflow_artifact_download_failed", finalResponse.status);
+      let bytes: Uint8Array;
+      try {
+        bytes = new Uint8Array(await finalResponse.arrayBuffer());
+      } catch {
+        throw new GithubServiceError("workflow_artifact_download_invalid");
+      }
+      const suggestedFilename = String(finalResponse.headers.get("content-disposition") || `artifact-${input.artifactId}.zip`)
+        .replace(/^attachment;?\s*/i, "")
+        .replace(/filename\*?=(UTF-8'')?/i, "")
+        .replace(/["\\]/g, "")
+        .trim() || `artifact-${input.artifactId}.zip`;
+      return { bytes, suggestedFilename };
     },
   };
 }

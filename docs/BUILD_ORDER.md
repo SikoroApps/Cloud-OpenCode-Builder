@@ -65,11 +65,13 @@ Exit criteria:
 - Backend tests: 24 passed locally; CI green on `45357090689` (Cloud Backend) and `45357090706`
   (Android).
 
-## Batch 3.5 — APK delivery and signed release preparation (BLOCKED BY 3.4 LIVE VERIFICATION)
+## Batch 3.5 — APK delivery and signed release preparation (IMPLEMENTED, LIVE BLOCKED BY 3.1 CREDENTIALS)
 
-- Retrieve successful APK artifacts and expose a browser-friendly download link.
+- Retrieve successful APK artifacts and expose a browser-friendly, short-lived single-use link.
 - Include app icons in builds.
-- Prepare signed release APK support using protected GitHub secrets; never commit signing material.
+- Prepare signed release APK support using protected GitHub Actions secret names only; never commit
+  signing material.
+- Backend tests: 30 passed locally; CI evidence recorded in `docs/PROGRESS.md` after push.
 
 ## Batch 4 — Advanced features (planned)
 

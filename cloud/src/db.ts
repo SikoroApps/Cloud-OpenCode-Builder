@@ -103,6 +103,14 @@ export function getDb(path: string): DatabaseSync {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS build_download_grants (
+      token_hash TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      build_id TEXT NOT NULL,
+      artifact_id INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
   `);
   return db;
 }
@@ -300,6 +308,17 @@ export function findProjectByRepo(userId: string, repoFullName: string): any | u
     .get(userId, repoFullName) as any;
 }
 
+export function findProjectById(userId: string, projectId: string): any | undefined {
+  return getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare(
+      `SELECT id, repo_id AS repoId, repo_full_name AS repoFullName, repo_owner AS repoOwner,
+              repo_name AS repoName, default_branch AS defaultBranch, html_url AS htmlUrl,
+              created_at AS createdAt, updated_at AS updatedAt
+       FROM projects WHERE user_id = ? AND id = ?`,
+    )
+    .get(userId, projectId) as any;
+}
+
 export function selectProject(userId: string, projectId: string, now: number): void {
   getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite").prepare(
     `INSERT INTO project_selections (user_id, project_id, selected_at) VALUES (?, ?, ?)
@@ -461,4 +480,35 @@ export function updateBuild(input: {
     input.now,
     input.id,
   );
+}
+
+export function saveBuildDownloadGrant(input: {
+  tokenHash: string;
+  userId: string;
+  buildId: string;
+  artifactId: number;
+  now: number;
+  expiresAt: number;
+}): void {
+  getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite").prepare(
+    `INSERT INTO build_download_grants
+      (token_hash, user_id, build_id, artifact_id, created_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(input.tokenHash, input.userId, input.buildId, input.artifactId, input.now, input.expiresAt);
+}
+
+export function findBuildDownloadGrant(tokenHash: string, now: number): any | undefined {
+  return getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare(
+      `SELECT token_hash AS tokenHash, user_id AS userId, build_id AS buildId,
+              artifact_id AS artifactId, expires_at AS expiresAt
+       FROM build_download_grants WHERE token_hash = ? AND expires_at > ?`,
+    )
+    .get(tokenHash, now) as any;
+}
+
+export function deleteBuildDownloadGrant(tokenHash: string): void {
+  getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare("DELETE FROM build_download_grants WHERE token_hash = ?")
+    .run(tokenHash);
 }

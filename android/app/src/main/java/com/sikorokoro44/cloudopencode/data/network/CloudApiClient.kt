@@ -38,6 +38,10 @@ interface CloudApiClient {
     fun build(token: String, buildId: String): Result<ProjectBuild>
     fun refreshBuild(token: String, buildId: String): Result<ProjectBuild>
     fun buildLogs(token: String, buildId: String): Result<BuildLogSummary>
+    fun buildArtifacts(token: String, buildId: String): Result<List<BuildArtifact>>
+    fun apkDownloadLink(token: String, buildId: String, artifactId: Long): Result<ApkDownloadLink>
+    fun addLauncherIcon(token: String): Result<List<String>>
+    fun signedReleaseWorkflow(token: String): Result<ReleaseTemplate>
 }
 
 class CloudApiClientImpl(
@@ -337,6 +341,57 @@ class CloudApiClientImpl(
             jobs = jobs,
             failedSteps = failedSteps,
         )
+    }
+
+    override fun buildArtifacts(token: String, buildId: String): Result<List<BuildArtifact>> = runCatching {
+        val encoded = java.net.URLEncoder.encode(buildId, "UTF-8")
+        val response = request("GET", "/api/projects/build/artifacts?buildId=$encoded", token, null)
+        val array = response.optJSONArray("artifacts") ?: throw CloudApiError.Network("artifact list failed")
+        val artifacts = ArrayList<BuildArtifact>()
+        for (index in 0 until array.length()) {
+            val item = array.optJSONObject(index) ?: continue
+            artifacts.add(BuildArtifact(
+                id = item.optLong("id"),
+                name = item.optString("name"),
+                sizeInBytes = item.optLong("sizeInBytes"),
+                expired = item.optBoolean("expired"),
+                createdAt = item.optLong("createdAt"),
+                downloadUrl = item.optString("downloadUrl"),
+                browserUrl = item.optString("browserUrl"),
+            ))
+        }
+        artifacts
+    }
+
+    override fun apkDownloadLink(token: String, buildId: String, artifactId: Long): Result<ApkDownloadLink> = runCatching {
+        val body = JSONObject().put("buildId", buildId).put("artifactId", artifactId)
+        val response = request("POST", "/api/projects/build/artifact/link", token, body)
+        ApkDownloadLink(
+            url = response.optString("url"),
+            downloadUrl = response.optString("downloadUrl"),
+            expiresAt = response.optLong("expiresAt"),
+            expiresIn = response.optLong("expiresIn"),
+        )
+    }
+
+    override fun addLauncherIcon(token: String): Result<List<String>> = runCatching {
+        val response = request("POST", "/api/projects/launcher-icon", token, JSONObject())
+        val array = response.optJSONArray("files") ?: throw CloudApiError.Network("launcher icon failed")
+        val files = ArrayList<String>()
+        for (index in 0 until array.length()) files.add(array.optString(index))
+        files
+    }
+
+    override fun signedReleaseWorkflow(token: String): Result<ReleaseTemplate> = runCatching {
+        val response = request("POST", "/api/projects/signed-release-workflow", token, JSONObject())
+        val file = response.optJSONObject("file")?.let(::fileFromJson)
+            ?: throw CloudApiError.Network("signed release template failed")
+        val array = response.optJSONArray("requiredSecrets")
+        val secrets = ArrayList<String>()
+        if (array != null) {
+            for (index in 0 until array.length()) secrets.add(array.optString(index))
+        }
+        ReleaseTemplate(file, secrets, response.optString("note"))
     }
 
     private fun buildFromJson(json: JSONObject): ProjectBuild = ProjectBuild(

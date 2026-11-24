@@ -25,6 +25,10 @@ import {
   findBuild,
   listBuilds,
   updateBuild,
+  findProjectById,
+  saveBuildDownloadGrant,
+  findBuildDownloadGrant,
+  deleteBuildDownloadGrant,
 } from "./db.ts";
 import { loadConfig, type CloudConfig, type GithubConfig } from "./config.ts";
 import { createGithubService, decryptToken, encryptToken, isGithubConfigured, type GithubService } from "./github.ts";
@@ -34,6 +38,7 @@ import {
   validateFileContent,
   type AiFilePlanner,
 } from "./files.ts";
+import { findZipFileByExtension } from "./zip.ts";
 
 export interface AuthUser { id: string; email: string }
 
@@ -41,6 +46,7 @@ export interface ApiDependencies {
   githubConfig: GithubConfig;
   githubService: GithubService;
   aiFilePlanner: AiFilePlanner;
+  publicBaseUrl?: string;
 }
 
 class ApiRequestError extends Error {
@@ -60,6 +66,7 @@ export function createApiDependencies(config: CloudConfig = loadConfig()): ApiDe
     githubConfig: config.github,
     githubService: createGithubService(config.github),
     aiFilePlanner: createDefaultAiFilePlanner(),
+    publicBaseUrl: config.baseUrl,
   };
 }
 
@@ -124,7 +131,8 @@ export async function handleApiRequest(
     return;
   }
   const auth = await authenticate(req);
-  if (!auth.userId) {
+  const browserArtifactDownload = req.method === "GET" && path === "/api/projects/build/artifact" && url.searchParams.has("grant");
+  if (!auth.userId && !browserArtifactDownload) {
     sendJson(res, 401, { error: "unauthorized" });
     return;
   }
@@ -490,6 +498,164 @@ export async function handleApiRequest(
     }
     return;
   }
+  if (req.method === "GET" && path === "/api/projects/build/artifacts") {
+    try {
+      const { token, project } = requireSelectedProject(auth.userId, deps);
+      const build = requireSuccessfulBuild(auth.userId, deps, url.searchParams.get("buildId") || "");
+      const artifacts = await deps.githubService.listWorkflowArtifacts(token, {
+        owner: String(project.repoOwner),
+        repo: String(project.repoName),
+        runId: Number(build.runId),
+      });
+      sendJson(res, 200, {
+        buildId: String(build.id),
+        runId: Number(build.runId),
+        artifacts: artifacts.map((artifact) => ({
+          id: artifact.id,
+          name: artifact.name,
+          sizeInBytes: artifact.sizeInBytes,
+          expired: artifact.expired,
+          createdAt: artifact.createdAt,
+          downloadUrl: `/api/projects/build/artifact?buildId=${encodeURIComponent(String(build.id))}&artifactId=${artifact.id}`,
+          browserUrl: artifact.htmlUrl || String(build.runUrl || ""),
+        })),
+      });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
+  if (req.method === "POST" && path === "/api/projects/build/artifact/link") {
+    try {
+      const { token, project } = requireSelectedProject(String(auth.userId), deps);
+      const body = await readJson(req);
+      const build = requireSuccessfulBuild(String(auth.userId), deps, body?.buildId);
+      const artifactId = Number(body?.artifactId);
+      if (!Number.isFinite(artifactId) || artifactId <= 0) throw new ApiRequestError(400, "invalid_request");
+      const artifacts = await deps.githubService.listWorkflowArtifacts(token, {
+        owner: String(project.repoOwner),
+        repo: String(project.repoName),
+        runId: Number(build.runId),
+      });
+      if (!artifacts.some((artifact) => artifact.id === artifactId)) throw new ApiRequestError(404, "artifact_not_found");
+      const grant = randomBytes(32).toString("base64url");
+      const tokenHash = createHashHex(grant);
+      const now = Date.now();
+      const expiresIn = 10 * 60 * 1000;
+      const expiresAt = now + expiresIn;
+      saveBuildDownloadGrant({
+        tokenHash,
+        userId: String(auth.userId),
+        buildId: String(build.id),
+        artifactId,
+        now,
+        expiresAt,
+      });
+      const relativeUrl = `/api/projects/build/artifact?buildId=${encodeURIComponent(String(build.id))}&artifactId=${artifactId}&grant=${encodeURIComponent(grant)}`;
+      const base = String(deps.publicBaseUrl || "http://localhost:8080").replace(/\/+$/, "");
+      sendJson(res, 200, { url: base + relativeUrl, downloadUrl: relativeUrl, expiresAt, expiresIn });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
+  if (req.method === "GET" && path === "/api/projects/build/artifact") {
+    try {
+      const rawGrant = url.searchParams.get("grant") || "";
+      let userId = String(auth.userId || "");
+      let build: any;
+      let artifactId = Number(url.searchParams.get("artifactId") || "");
+      let grantHash = "";
+      if (rawGrant) {
+        grantHash = createHashHex(rawGrant);
+        const record = findBuildDownloadGrant(grantHash, Date.now());
+        if (!record) throw new ApiRequestError(403, "invalid_download_grant");
+        userId = String(record.userId);
+        build = findBuild(String(record.buildId));
+        artifactId = Number(record.artifactId);
+        if (!build) throw new ApiRequestError(404, "build_not_found");
+      } else {
+        if (!userId) throw new ApiRequestError(401, "unauthorized");
+        build = requireSuccessfulBuild(userId, deps, url.searchParams.get("buildId") || "");
+      }
+      if (build.status !== "completed" || build.conclusion !== "success") throw new ApiRequestError(409, "build_not_successful");
+      if (!build.runId) throw new ApiRequestError(409, "build_not_started");
+      if (!Number.isFinite(artifactId) || artifactId <= 0) throw new ApiRequestError(400, "invalid_request");
+      const project = findProjectById(userId, String(build.projectId));
+      if (!project) throw new ApiRequestError(404, "project_not_found");
+      const { token } = requireGithubAccess(userId, deps);
+      const artifact = await deps.githubService.downloadWorkflowArtifact(token, {
+        owner: String(project.repoOwner),
+        repo: String(project.repoName),
+        artifactId,
+      });
+      const apk = findZipFileByExtension(artifact.bytes, ".apk");
+      if (!apk) throw new ApiRequestError(404, "apk_not_found");
+      if (grantHash) deleteBuildDownloadGrant(grantHash);
+      const filename = apk.filename.split("/").pop()?.replace(/[^A-Za-z0-9._-]/g, "_") || "app.apk";
+      res.writeHead(200, {
+        "Content-Type": "application/vnd.android.package-archive",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Length": apk.content.length,
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+      });
+      res.end(Buffer.from(apk.content));
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
+  if (req.method === "POST" && path === "/api/projects/launcher-icon") {
+    try {
+      const { project } = requireSelectedProject(auth.userId, deps);
+      const now = Date.now();
+      const paths = Object.keys(launcherIconFiles());
+      for (const filePath of paths) {
+        saveProjectFile({
+          projectId: String(project.id),
+          path: filePath,
+          content: launcherIconFiles()[filePath],
+          now,
+        });
+      }
+      sendJson(res, 200, { files: paths, message: "Launcher icon files saved; commit them before building" });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
+  if (req.method === "POST" && path === "/api/projects/signed-release-workflow") {
+    try {
+      const { project } = requireSelectedProject(auth.userId, deps);
+      const workflowPath = ".github/workflows/android-release.yml";
+      const now = Date.now();
+      const existingIgnore = findProjectFile(String(project.id), ".gitignore");
+      const ignoreLines = new Set(String(existingIgnore?.content || "").split(/\r?\n/).filter(Boolean));
+      ignoreLines.add("*.jks");
+      ignoreLines.add("*.keystore");
+      saveProjectFile({
+        projectId: String(project.id),
+        path: ".gitignore",
+        content: [...ignoreLines].join("\n") + "\n",
+        now,
+      });
+      saveProjectFile({
+        projectId: String(project.id),
+        path: workflowPath,
+        content: signedReleaseWorkflow(),
+        now,
+      });
+      sendJson(res, 200, {
+        file: fileDto(findProjectFile(String(project.id), workflowPath)),
+        requiredSecrets: SIGNING_SECRET_NAMES,
+        note: "Set these as GitHub Actions secrets in the selected repository; no values are stored here.",
+      });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
   sendJson(res, 404, { error: "not_found" });
 }
 
@@ -502,6 +668,15 @@ function requireBuildForProject(userId: string, deps: ApiDependencies, buildId: 
 function requireBuild(userId: string, deps: ApiDependencies, buildId: string): any {
   const { project } = requireSelectedProject(userId, deps);
   return requireBuildForProject(userId, deps, buildId, String(project.id));
+}
+
+function requireSuccessfulBuild(userId: string, deps: ApiDependencies, buildId: string): any {
+  const build = requireBuild(userId, deps, buildId);
+  if (build.status !== "completed" || build.conclusion !== "success") {
+    throw new ApiRequestError(409, "build_not_successful");
+  }
+  if (!build.runId) throw new ApiRequestError(409, "build_not_started");
+  return build;
 }
 
 async function refreshBuild(userId: string, deps: ApiDependencies, rawBuildId: unknown): Promise<any> {
@@ -689,6 +864,8 @@ function defaultBuildWorkflow(): string {
     "        with:",
     "          distribution: temurin",
     "          java-version: '17'",
+    "      - name: Verify launcher icon",
+    "        run: test -f app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml",
     "      - name: Assemble debug APK",
     "        run: ./gradlew assembleDebug",
     "      - name: Upload APK",
@@ -698,6 +875,96 @@ function defaultBuildWorkflow(): string {
     "          path: app/build/outputs/apk/debug/*.apk",
     "",
   ].join("\n");
+}
+
+const SIGNING_SECRET_NAMES = [
+  "ANDROID_KEYSTORE_BASE64",
+  "ANDROID_KEYSTORE_PASSWORD",
+  "ANDROID_KEY_ALIAS",
+  "ANDROID_KEY_PASSWORD",
+];
+
+function signedReleaseWorkflow(): string {
+  return [
+    "name: Android signed release",
+    "on:",
+    "  workflow_dispatch:",
+    "permissions:",
+    "  contents: read",
+    "jobs:",
+    "  release:",
+    "    runs-on: ubuntu-latest",
+    "    steps:",
+    "      - uses: actions/checkout@v4",
+    "      - uses: actions/setup-java@v4",
+    "        with:",
+    "          distribution: temurin",
+    "          java-version: '17'",
+    "      - name: Decode signing keystore",
+    "        env:",
+    "          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}",
+    "          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}",
+    "          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}",
+    "          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}",
+    "        run: |",
+    '          if [ -z "$ANDROID_KEYSTORE_BASE64" ] || [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEY_PASSWORD" ]; then',
+    '            echo "::error::Signing secrets are not configured in repository Actions secrets"',
+    "            exit 1",
+    "          fi",
+    "          mkdir -p app",
+    "          printf '%s' \"$ANDROID_KEYSTORE_BASE64\" | base64 --decode > app/release.jks",
+    "      - name: Assemble signed release APK",
+    "        env:",
+    "          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}",
+    "          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}",
+    "          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}",
+    "        run: |",
+    "          ./gradlew :app:assembleRelease \\",
+    "            -Pandroid.injected.signing.store.file=$PWD/app/release.jks \\",
+    "            -Pandroid.injected.signing.store.type=keystore \\",
+    '            -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \\',
+    '            -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \\',
+    '            -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"',
+    "      - name: Upload signed APK",
+    "        uses: actions/upload-artifact@v4",
+    "        with:",
+    "          name: app-release-signed",
+    "          path: app/build/outputs/apk/release/*.apk",
+    "",
+  ].join("\n");
+}
+
+function launcherIconFiles(): Record<string, string> {
+  return {
+    "app/src/main/res/values/ic_launcher_background.xml": [
+      "<?xml version=\"1.0\" encoding=\"utf-8\"?>",
+      "<resources>",
+      "    <color name=\"ic_launcher_background\">#FF1565C0</color>",
+      "</resources>",
+      "",
+    ].join("\n"),
+    "app/src/main/res/drawable/ic_launcher_foreground.xml": [
+      "<?xml version=\"1.0\" encoding=\"utf-8\"?>",
+      "<vector xmlns:android=\"http://schemas.android.com/apk/res/android\"",
+      "    android:width=\"108dp\"",
+      "    android:height=\"108dp\"",
+      "    android:viewportWidth=\"108\"",
+      "    android:viewportHeight=\"108\">",
+      "    <path",
+      "        android:fillColor=\"#FFFFFFFF\"",
+      "        android:pathData=\"M54,30 L74,42 L74,66 L54,78 L34,66 L34,42 Z\" />",
+      "</vector>",
+      "",
+    ].join("\n"),
+    "app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml": [
+      "<?xml version=\"1.0\" encoding=\"utf-8\"?>",
+      "<adaptive-icon xmlns:android=\"http://schemas.android.com/apk/res/android\">",
+      "    <background android:drawable=\"@color/ic_launcher_background\" />",
+      "    <foreground android:drawable=\"@drawable/ic_launcher_foreground\" />",
+      "</adaptive-icon>",
+      "",
+    ].join("\n"),
+  };
 }
 
 function fileDto(file: any): Record<string, unknown> {

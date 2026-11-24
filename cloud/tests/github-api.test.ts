@@ -12,6 +12,7 @@ import { createApiHandler } from "../src/http.ts";
 import { GithubServiceError, type GithubService } from "../src/github.ts";
 import type { AiFilePlanner } from "../src/files.ts";
 import { closeDb } from "../src/db.ts";
+import { makeStoredZip } from "./test-zip.ts";
 
 process.env.CLOUD_DB_PATH = join(mkdtempSync(join(tmpdir(), "co-github-api-")), "test.sqlite");
 
@@ -27,13 +28,17 @@ function githubConfig(configured = true): GithubConfig {
   };
 }
 
-function mockService(options: { failCommit?: boolean; buildOutcome?: "success" | "failure" } = {}): GithubService {
+function mockService(options: { failCommit?: boolean; buildOutcome?: "success" | "failure"; withArtifact?: boolean } = {}): GithubService {
   const files = new Map<string, string>([["README.md", "# existing-app"]]);
   let commitCount = 0;
   let dispatched = false;
   let runViews = 0;
   let run: any = null;
   let jobs: any[] = [];
+  const artifactZip = makeStoredZip([{
+    name: "app/build/outputs/apk/debug/app-debug.apk",
+    content: "APK-BYTES-FOR-DOWNLOAD",
+  }]);
   const repositories = [{
     id: 1,
     fullName: "octocat/existing-app",
@@ -136,6 +141,20 @@ function mockService(options: { failCommit?: boolean; buildOutcome?: "success" |
     async listWorkflowJobs() {
       if (!run) throw new GithubServiceError("workflow_jobs_failed", 404);
       return jobs;
+    },
+    async listWorkflowArtifacts() {
+      if (!options.withArtifact) return [];
+      return [{
+        id: 7,
+        name: "app-debug-apk",
+        sizeInBytes: artifactZip.length,
+        expired: false,
+        createdAt: Date.now(),
+        htmlUrl: "https://github.com/octocat/new-app/actions/runs/99/artifacts/7",
+      }];
+    },
+    async downloadWorkflowArtifact() {
+      return { bytes: artifactZip, suggestedFilename: "app-debug-apk.zip" };
     },
   };
 }
@@ -533,6 +552,133 @@ test("failed GitHub workflow is reported as a failure with failed steps", async 
     assert.equal(logs.conclusion, "failure");
     assert.equal(logs.failedSteps[0].step, "Assemble");
     assert.equal(JSON.stringify(logs).includes("gh-token-do-not-expose"), false);
+  } finally {
+    await server.close();
+    closeDb();
+  }
+});
+
+test("successful builds expose artifacts as browser-downloadable APK files", async () => {
+  const server = await startServer(deps(true, mockService({ withArtifact: true })));
+  try {
+    const auth = await registerAndConnect(server.baseUrl);
+    await createProject(server.baseUrl, auth);
+    let response = await fetch(`${server.baseUrl}/api/projects/builds`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const buildId = String(((await response.json()) as any).build.id);
+
+    response = await fetch(`${server.baseUrl}/api/projects/build/artifacts?buildId=${buildId}`, { headers: auth });
+    assert.equal(response.status, 409);
+    assert.equal(((await response.json()) as any).error, "build_not_successful");
+
+    response = await fetch(`${server.baseUrl}/api/projects/build/refresh`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ buildId }),
+    });
+    assert.equal(((await response.json()) as any).build.status, "in_progress");
+    response = await fetch(`${server.baseUrl}/api/projects/build/refresh`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ buildId }),
+    });
+    assert.equal(((await response.json()) as any).build.conclusion, "success");
+
+    response = await fetch(`${server.baseUrl}/api/projects/build/artifacts?buildId=${buildId}`, { headers: auth });
+    assert.equal(response.status, 200);
+    const artifacts = ((await response.json()) as any).artifacts as any[];
+    assert.equal(artifacts[0].name, "app-debug-apk");
+    assert.equal(artifacts[0].downloadUrl.includes(encodeURIComponent(buildId)), true);
+    assert.equal(artifacts[0].browserUrl, "https://github.com/octocat/new-app/actions/runs/99/artifacts/7");
+    assert.equal(JSON.stringify(artifacts).includes("gh-token-do-not-expose"), false);
+
+    response = await fetch(`${server.baseUrl}${artifacts[0].downloadUrl}`, { headers: auth });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("content-type"), "application/vnd.android.package-archive");
+    assert.match(response.headers.get("content-disposition") || "", /attachment; filename="app-debug\.apk"/);
+    assert.equal(await response.text(), "APK-BYTES-FOR-DOWNLOAD");
+  } finally {
+    await server.close();
+    closeDb();
+  }
+});
+
+test("browser APK link is short-lived and needs no token in the URL", async () => {
+  const server = await startServer({ ...deps(true, mockService({ withArtifact: true })), publicBaseUrl: "https://backend.example.invalid" });
+  try {
+    const auth = await registerAndConnect(server.baseUrl);
+    await createProject(server.baseUrl, auth);
+    let response = await fetch(`${server.baseUrl}/api/projects/builds`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const buildId = String(((await response.json()) as any).build.id);
+    for (let index = 0; index < 2; index += 1) {
+      response = await fetch(`${server.baseUrl}/api/projects/build/refresh`, {
+        method: "POST",
+        headers: { ...auth, "Content-Type": "application/json" },
+        body: JSON.stringify({ buildId }),
+      });
+    }
+    assert.equal(((await response.json()) as any).build.conclusion, "success");
+
+    response = await fetch(`${server.baseUrl}/api/projects/build/artifact/link`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ buildId, artifactId: 7 }),
+    });
+    assert.equal(response.status, 200);
+    const link = (await response.json()) as any;
+    assert.equal(link.url.startsWith("https://backend.example.invalid/api/projects/build/artifact?"), true);
+    assert.equal(link.downloadUrl.includes("grant="), true);
+    assert.equal(link.expiresIn, 600_000);
+    assert.equal(JSON.stringify(link).includes("gh-token-do-not-expose"), false);
+
+    const browserResponse = await fetch(link.url.replace("https://backend.example.invalid", server.baseUrl));
+    assert.equal(browserResponse.status, 200);
+    assert.equal(await browserResponse.text(), "APK-BYTES-FOR-DOWNLOAD");
+
+    const replay = await fetch(link.url.replace("https://backend.example.invalid", server.baseUrl));
+    assert.equal(replay.status, 403);
+    assert.equal(((await replay.json()) as any).error, "invalid_download_grant");
+  } finally {
+    await server.close();
+    closeDb();
+  }
+});
+
+test("launcher icon and signed release templates never include signing values", async () => {
+  const server = await startServer(deps());
+  try {
+    const auth = await registerAndConnect(server.baseUrl);
+    await createProject(server.baseUrl, auth);
+
+    let response = await fetch(`${server.baseUrl}/api/projects/launcher-icon`, { method: "POST", headers: auth });
+    assert.equal(response.status, 200);
+    const iconFiles = ((await response.json()) as any).files as string[];
+    assert.equal(iconFiles.includes("app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml"), true);
+    response = await fetch(`${server.baseUrl}/api/projects/files`, { headers: auth });
+    const files = ((await response.json()) as any).files as any[];
+    assert.equal(files.some((file) => file.path.endsWith("ic_launcher_foreground.xml") && file.content.includes("vector")), true);
+
+    response = await fetch(`${server.baseUrl}/api/projects/signed-release-workflow`, { method: "POST", headers: auth });
+    assert.equal(response.status, 200);
+    const workflow = (await response.json()) as any;
+    assert.deepEqual(workflow.requiredSecrets, [
+      "ANDROID_KEYSTORE_BASE64",
+      "ANDROID_KEYSTORE_PASSWORD",
+      "ANDROID_KEY_ALIAS",
+      "ANDROID_KEY_PASSWORD",
+    ]);
+    assert.equal(workflow.file.content.includes("${{ secrets.ANDROID_KEYSTORE_BASE64 }}"), true);
+    assert.equal(workflow.file.content.includes("app/release.jks"), true);
+    response = await fetch(`${server.baseUrl}/api/projects/file?path=.gitignore`, { headers: auth });
+    assert.equal(((await response.json()) as any).file.content.includes("*.jks"), true);
+    assert.equal(/gh-token-do-not-expose|client-secret|BEGIN PRIVATE KEY/.test(JSON.stringify(workflow)), false);
   } finally {
     await server.close();
     closeDb();

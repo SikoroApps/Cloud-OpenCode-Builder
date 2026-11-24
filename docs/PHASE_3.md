@@ -42,8 +42,12 @@ one dependency-ready batch at a time as defined in `docs/BUILD_ORDER.md`.
    - `GITHUB_TOKEN_ENCRYPTION_KEY` — base64 of 32 random bytes, e.g. generated with
      `openssl rand -base64 32`
    - optional `GITHUB_APP_CALLBACK_URL` — defaults to `cloudopencode://github/callback`
-4. Set the Android build's public `CLOUD_BASE_URL` to the HTTPS backend domain.
-5. Authorize the app from a signed-in user account. Only then can live connect/disconnect be claimed.
+4. Set the Android build's public `CLOUD_BASE_URL` to the HTTPS backend domain; the backend uses the
+   same value to build browser-openable APK links.
+5. For signed releases, add `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+   `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` as GitHub Actions secrets in the selected app
+   repository. Never put these values in this repository or in Android configuration.
+6. Authorize the app from a signed-in user account. Only then can live connect/disconnect be claimed.
 
 No client ID, secret, token or encryption key is present in this repository.
 
@@ -116,7 +120,40 @@ No client ID, secret, token or encryption key is present in this repository.
   `45357090706` **success** (all three jobs, including HTTPS integration).
 - Live GitHub Actions runs were not triggered; the OAuth credentials from Batch 3.1 are required.
 
-### Remaining batch
+## Batch 3.5 — APK delivery and signed release preparation (IMPLEMENTED, LIVE BLOCKED)
 
-APK delivery and signed release preparation are next in dependency order, listed in
-`docs/BUILD_ORDER.md`.
+### Implemented
+
+- `GET /api/projects/build/artifacts` lists artifacts from the successful workflow run and returns a
+  GitHub browser URL plus an authenticated backend download path.
+- `GET /api/projects/build/artifact` downloads the artifact ZIP with the server-side token, reads the
+  `.apk` entry in memory (no disk extraction), and returns it as
+  `application/vnd.android.package-archive` with an `attachment` filename.
+- `POST /api/projects/build/artifact/link` creates a 10-minute, single-use, hashed download grant.
+  The returned HTTPS URL can be opened directly in a browser without a token, client secret, GitHub
+  token or signing material in the URL. Replay of a used grant is rejected.
+- `POST /api/projects/launcher-icon` saves adaptive launcher icon XML templates to the selected
+  project; they must be committed before building. The generated build workflow verifies the icon
+  file exists.
+- `POST /api/projects/signed-release-workflow` saves a release workflow that reads four protected
+  GitHub Actions secret names only (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+  `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`). No secret values or keystore files are stored or
+  committed.
+- Android client methods cover artifact listing, browser-friendly APK links, launcher icons and
+  signed-release templates; HTTPS integration checks the new endpoints fail safely when GitHub is
+  unconfigured.
+
+### Verified locally
+
+- `cd cloud && npm test`: **30 passed, 0 failures** (8 Phase 2 + 22 Phase 3 tests).
+- Tests cover in-memory ZIP parsing, artifact authorization, successful APK download headers/body,
+  browser link expiry/replay rejection, icon templates, and secret-name-only release workflow.
+- Live artifact download and signed release builds were not performed; they require the OAuth setup
+  from Batch 3.1 and repository-configured signing secrets.
+
+### Phase 3 status
+
+All planned Phase 3 batches are implemented and locally/CI verified with mocked providers. Live
+GitHub OAuth, repository creation, commits, Actions runs, artifact downloads and signed releases
+remain blocked until the external credentials and repository settings in `docs/PHASE_3.md` are
+provided. No production or live build claim is made.

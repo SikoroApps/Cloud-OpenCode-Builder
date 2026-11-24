@@ -149,6 +149,29 @@ data class BuildLogSummary(
     val failedSteps: List<FailedStep>,
 )
 
+data class BuildArtifact(
+    val id: Long,
+    val name: String,
+    val sizeInBytes: Long,
+    val expired: Boolean,
+    val createdAt: Long,
+    val downloadUrl: String,
+    val browserUrl: String,
+)
+
+data class ApkDownloadLink(
+    val url: String,
+    val downloadUrl: String,
+    val expiresAt: Long,
+    val expiresIn: Long,
+)
+
+data class ReleaseTemplate(
+    val file: ProjectFile,
+    val requiredSecrets: List<String>,
+    val note: String,
+)
+
 sealed class CloudApiError(message: String) : Exception(message) {
     data class Http(val code: Int, val errorMessage: String) : CloudApiError(errorMessage)
     data class Network(val errorMessage: String) : CloudApiError(errorMessage)

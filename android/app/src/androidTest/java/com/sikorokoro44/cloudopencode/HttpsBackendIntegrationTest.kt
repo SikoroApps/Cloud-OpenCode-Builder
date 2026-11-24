@@ -29,6 +29,10 @@ class HttpsBackendIntegrationTest {
         assertTrue(client.projectCommits(token).isFailure)
         assertTrue(client.builds(token).isFailure)
         assertTrue(client.buildLogs(token, "missing").isFailure)
+        assertTrue(client.buildArtifacts(token, "missing").isFailure)
+        assertTrue(client.apkDownloadLink(token, "missing", 1).isFailure)
+        assertTrue(client.addLauncherIcon(token).isFailure)
+        assertTrue(client.signedReleaseWorkflow(token).isFailure)
         val chat = client.sendChat(token, "https-ci-session", "persist over https").getOrThrow()
         assertEquals("STUB:persist over https", chat.assistantMessage?.content)
 

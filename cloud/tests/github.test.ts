@@ -201,6 +201,44 @@ test("workflow dispatch and monitoring use actual GitHub run results", async () 
   assert.equal(jobs[0].steps[0].conclusion, "success");
 });
 
+test("artifact listing and authorized download use the successful run", async () => {
+  const zipBytes = new Uint8Array([1, 2, 3, 4]);
+  let downloadAuth = "";
+  let redirectAuth = "unset";
+  const service = createGithubService(config(), (async (input: any, init: any) => {
+    const url = String(input);
+    if (url.endsWith("/actions/runs/99/artifacts")) {
+      assert.equal(init.headers.Authorization, "Bearer token");
+      return new Response(JSON.stringify({ artifacts: [{
+        id: 7,
+        name: "app-debug-apk",
+        size_in_bytes: 4,
+        expired: false,
+        created_at: new Date().toISOString(),
+        html_url: "https://github.com/octocat/app/actions/runs/99/artifacts/7",
+      }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (url.endsWith("/actions/artifacts/7/zip")) {
+      downloadAuth = init.headers.Authorization;
+      return new Response(null, { status: 302, headers: { Location: "https://artifacts.example.invalid/a.zip" } });
+    }
+    redirectAuth = init?.headers?.Authorization ?? "none";
+    return new Response(zipBytes, {
+      status: 200,
+      headers: { "Content-Disposition": "attachment; filename=artifact.zip" },
+    });
+  }) as typeof fetch);
+
+  const artifacts = await service.listWorkflowArtifacts("token", { owner: "octocat", repo: "app", runId: 99 });
+  assert.equal(artifacts[0].id, 7);
+  assert.equal(artifacts[0].name, "app-debug-apk");
+  const downloaded = await service.downloadWorkflowArtifact("token", { owner: "octocat", repo: "app", artifactId: 7 });
+  assert.equal(downloadAuth, "Bearer token");
+  assert.equal(redirectAuth, "none");
+  assert.deepEqual(Array.from(downloaded.bytes), [1, 2, 3, 4]);
+  assert.equal(downloaded.suggestedFilename, "artifact.zip");
+});
+
 test("OAuth code exchange succeeds and never echoes provider errors with token material", async () => {
   const service = createGithubService(config(), (async (input: any, init: any) => {
     assert.equal(String(input), "https://github.com/login/oauth/access_token");

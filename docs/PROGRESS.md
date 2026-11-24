@@ -101,8 +101,8 @@ deployment and provider secrets are external follow-on dependencies.
 
 ## Phase 3 — GitHub Integration & Cloud Android Builds
 
-Status: **BATCHES 3.1–3.4 IMPLEMENTED, LIVE VERIFICATION BLOCKED**; started from Phase 2 HEAD
-`09c4d94` without rewriting Phase 2.
+Status: **ALL PHASE 3 BATCHES (3.1–3.5) IMPLEMENTED, LIVE VERIFICATION BLOCKED**; started from Phase 2
+HEAD `09c4d94` without rewriting Phase 2.
 
 ### Batch 3.1 evidence
 
@@ -151,8 +151,20 @@ Status: **BATCHES 3.1–3.4 IMPLEMENTED, LIVE VERIFICATION BLOCKED**; started fr
 - CI on commit `dc2aea8`: `Cloud Backend CI` `45357090689` **success** and `Android CI`
   `45357090706` **success** (all three jobs, including HTTPS integration).
 
+### Batch 3.5 evidence
+
+- Backend artifact listing, in-memory APK extraction from GitHub artifact ZIPs, authenticated APK
+  download, short-lived single-use browser links, launcher icon templates and a signed-release
+  workflow referencing only protected GitHub Actions secret names are implemented.
+- `cd cloud && npm test`: **30 passed, 0 failures** (8 Phase 2 + 22 Phase 3 tests).
+- Tests verify APK response headers/body, browser-link creation and replay rejection, icon file
+  generation, and absence of token/signing values in workflow output.
+- Android client gained artifact/link/icon/release methods; HTTPS integration checks unconfigured
+  endpoints fail safely. CI evidence for this batch is pending the commit push.
+
 ### Blocked
 
-- No GitHub OAuth App client ID/secret or callback domain was provided, so live OAuth,
-  connect/disconnect, repository operations, commits and Actions runs cannot be tested.
-- APK delivery and signed release preparation remain next in dependency order.
+- No GitHub OAuth App client ID/secret, callback domain, permanent HTTPS backend or signing secrets
+  were provided, so live OAuth, repository operations, commits, Actions runs, artifact downloads and
+  signed releases cannot be tested.
+- CI evidence for Batch 3.5 is pending the commit push; no production/live build is claimed.
