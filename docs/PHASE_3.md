@@ -91,7 +91,30 @@ No client ID, secret, token or encryption key is present in this repository.
   `45355223014` **success** (verify, emulator smoke and HTTPS integration jobs all passed).
 - Live GitHub commits were not performed; the OAuth credentials from Batch 3.1 are still required.
 
-### Remaining batches
+## Batch 3.4 — GitHub Actions build orchestration (IMPLEMENTED, LIVE BLOCKED)
 
-Actions orchestration, APK delivery and signed release preparation are next in dependency order.
-They are listed in `docs/BUILD_ORDER.md`.
+### Implemented
+
+- `POST /api/projects/build-workflow` creates a deterministic `.github/workflows/android-build.yml`
+  file in the selected project; it must still be committed through the Batch 3.3 commit endpoint.
+- `POST /api/projects/builds` dispatches a `workflow_dispatch` run through the GitHub API and stores
+  a `queued` build record. Dispatch success is not reported as build success.
+- `POST /api/projects/build/refresh` reads the actual workflow run status/conclusion from GitHub,
+  attaches the run ID/URL, derives progress from real job completion, and only records
+  `conclusion: success` when GitHub reports a completed successful run.
+- `GET /api/projects/builds`, `GET /api/projects/build` and `GET /api/projects/build/logs` report
+  stored state, job-level status and failed steps. Failures are reported with the actual conclusion.
+- Android client methods cover workflow creation, dispatch, list/lookup/refresh and log summaries;
+  no token is returned to the client.
+
+### Verified locally
+
+- `cd cloud && npm test`: **24 passed, 0 failures** (8 Phase 2 + 16 Phase 3 tests).
+- Tests cover workflow dispatch payload/filtering, mocked queued → in_progress → success reporting,
+  failure reporting with failed steps, and token non-exposure.
+- Live GitHub Actions runs were not triggered; the OAuth credentials from Batch 3.1 are required.
+
+### Remaining batch
+
+APK delivery and signed release preparation are next in dependency order, listed in
+`docs/BUILD_ORDER.md`.

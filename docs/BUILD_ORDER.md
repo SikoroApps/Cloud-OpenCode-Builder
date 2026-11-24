@@ -58,12 +58,13 @@ Exit criteria:
 - Backend tests: 21 passed locally; CI green on `45355223253` (Cloud Backend) and `45355223014`
   (Android).
 
-## Batch 3.4 — GitHub Actions build orchestration (BLOCKED BY 3.3 LIVE VERIFICATION)
+## Batch 3.4 — GitHub Actions build orchestration (IMPLEMENTED, LIVE BLOCKED BY 3.1 CREDENTIALS)
 
 - Trigger Android builds through GitHub Actions.
 - Monitor workflow runs and progress; retrieve logs and report only actual results.
+- Backend tests: 24 passed locally; CI evidence recorded in `docs/PROGRESS.md` after push.
 
-## Batch 3.5 — APK delivery and signed release preparation (BLOCKED BY 3.4)
+## Batch 3.5 — APK delivery and signed release preparation (BLOCKED BY 3.4 LIVE VERIFICATION)
 
 - Retrieve successful APK artifacts and expose a browser-friendly download link.
 - Include app icons in builds.

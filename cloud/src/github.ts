@@ -34,6 +34,31 @@ export interface GithubCommitResult {
   htmlUrl: string;
 }
 
+export interface WorkflowRun {
+  id: number;
+  status: string;
+  conclusion: string | null;
+  createdAt: number;
+  updatedAt: number;
+  htmlUrl: string;
+  headBranch: string;
+  event: string;
+}
+
+export interface WorkflowJobStep {
+  name: string;
+  status: string;
+  conclusion: string | null;
+}
+
+export interface WorkflowJob {
+  id: number;
+  name: string;
+  status: string;
+  conclusion: string | null;
+  steps: WorkflowJobStep[];
+}
+
 export interface GithubService {
   authorizationUrl(state: string): string;
   exchangeCode(code: string): Promise<GithubTokenExchange>;
@@ -52,6 +77,10 @@ export interface GithubService {
     branch: string;
     sha?: string | null;
   }): Promise<GithubCommitResult>;
+  dispatchWorkflow(accessToken: string, input: { owner: string; repo: string; workflowPath: string; ref: string }): Promise<void>;
+  listWorkflowRuns(accessToken: string, input: { owner: string; repo: string; workflowPath: string; ref: string; createdAfter: number }): Promise<WorkflowRun[]>;
+  getWorkflowRun(accessToken: string, input: { owner: string; repo: string; runId: number }): Promise<WorkflowRun>;
+  listWorkflowJobs(accessToken: string, input: { owner: string; repo: string; runId: number }): Promise<WorkflowJob[]>;
 }
 
 export interface EncryptedToken {
@@ -116,6 +145,37 @@ function mapRepository(payload: any): GithubRepository {
     isPrivate: Boolean(payload.private),
     defaultBranch: String(payload.default_branch || "main"),
     htmlUrl: String(payload.html_url || ""),
+  };
+}
+
+function mapWorkflowRun(payload: any): WorkflowRun {
+  if (!Number.isFinite(Number(payload?.id)) || typeof payload?.status !== "string") {
+    throw new GithubServiceError("workflow_invalid_response");
+  }
+  return {
+    id: Number(payload.id),
+    status: String(payload.status),
+    conclusion: typeof payload.conclusion === "string" ? payload.conclusion : null,
+    createdAt: Date.parse(String(payload.created_at || "")) || 0,
+    updatedAt: Date.parse(String(payload.updated_at || "")) || 0,
+    htmlUrl: String(payload.html_url || ""),
+    headBranch: String(payload.head_branch || ""),
+    event: String(payload.event || ""),
+  };
+}
+
+function mapWorkflowJob(payload: any): WorkflowJob {
+  const steps = Array.isArray(payload?.steps) ? payload.steps : [];
+  return {
+    id: Number(payload?.id),
+    name: String(payload?.name || ""),
+    status: String(payload?.status || ""),
+    conclusion: typeof payload?.conclusion === "string" ? payload.conclusion : null,
+    steps: steps.map((step: any) => ({
+      name: String(step?.name || ""),
+      status: String(step?.status || ""),
+      conclusion: typeof step?.conclusion === "string" ? step.conclusion : null,
+    })),
   };
 }
 
@@ -349,6 +409,85 @@ export function createGithubService(
         sha: payload.commit.sha,
         htmlUrl: String(payload.content?.html_url || payload.commit?.html_url || ""),
       };
+    },
+
+    async dispatchWorkflow(accessToken: string, input: { owner: string; repo: string; workflowPath: string; ref: string }): Promise<void> {
+      const workflowId = input.workflowPath.split("/").pop() || input.workflowPath;
+      const url = `${config.apiBaseUrl}/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/actions/workflows/${encodeURIComponent(workflowId)}/dispatches`;
+      let response: Response;
+      try {
+        response = await fetchImpl(url, {
+          method: "POST",
+          headers: { ...apiHeaders(accessToken), "Content-Type": "application/json" },
+          body: JSON.stringify({ ref: input.ref }),
+        });
+      } catch {
+        throw new GithubServiceError("workflow_dispatch_transport_failed");
+      }
+      if (!response.ok) throw new GithubServiceError("workflow_dispatch_failed", response.status);
+    },
+
+    async listWorkflowRuns(accessToken: string, input: { owner: string; repo: string; workflowPath: string; ref: string; createdAfter: number }): Promise<WorkflowRun[]> {
+      const workflowId = input.workflowPath.split("/").pop() || input.workflowPath;
+      const query = new URLSearchParams({ per_page: "10" });
+      const url = `${config.apiBaseUrl}/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/actions/workflows/${encodeURIComponent(workflowId)}/runs?${query}`;
+      let response: Response;
+      try {
+        response = await fetchImpl(url, { headers: apiHeaders(accessToken) });
+      } catch {
+        throw new GithubServiceError("workflow_runs_transport_failed");
+      }
+      if (!response.ok) throw new GithubServiceError("workflow_runs_failed", response.status);
+      let payload: any;
+      try {
+        payload = await response.json();
+      } catch {
+        throw new GithubServiceError("workflow_runs_invalid_response");
+      }
+      if (!Array.isArray(payload?.workflow_runs)) throw new GithubServiceError("workflow_runs_invalid_response");
+      return payload.workflow_runs
+        .map(mapWorkflowRun)
+        .filter((run: WorkflowRun) =>
+          run.event === "workflow_dispatch" &&
+          run.headBranch === input.ref &&
+          run.createdAt >= input.createdAfter - 60_000);
+    },
+
+    async getWorkflowRun(accessToken: string, input: { owner: string; repo: string; runId: number }): Promise<WorkflowRun> {
+      const url = `${config.apiBaseUrl}/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/actions/runs/${input.runId}`;
+      let response: Response;
+      try {
+        response = await fetchImpl(url, { headers: apiHeaders(accessToken) });
+      } catch {
+        throw new GithubServiceError("workflow_run_transport_failed");
+      }
+      if (!response.ok) throw new GithubServiceError("workflow_run_failed", response.status);
+      let payload: any;
+      try {
+        payload = await response.json();
+      } catch {
+        throw new GithubServiceError("workflow_run_invalid_response");
+      }
+      return mapWorkflowRun(payload);
+    },
+
+    async listWorkflowJobs(accessToken: string, input: { owner: string; repo: string; runId: number }): Promise<WorkflowJob[]> {
+      const url = `${config.apiBaseUrl}/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/actions/runs/${input.runId}/jobs`;
+      let response: Response;
+      try {
+        response = await fetchImpl(url, { headers: apiHeaders(accessToken) });
+      } catch {
+        throw new GithubServiceError("workflow_jobs_transport_failed");
+      }
+      if (!response.ok) throw new GithubServiceError("workflow_jobs_failed", response.status);
+      let payload: any;
+      try {
+        payload = await response.json();
+      } catch {
+        throw new GithubServiceError("workflow_jobs_invalid_response");
+      }
+      if (!Array.isArray(payload?.jobs)) throw new GithubServiceError("workflow_jobs_invalid_response");
+      return payload.jobs.map(mapWorkflowJob);
     },
   };
 }

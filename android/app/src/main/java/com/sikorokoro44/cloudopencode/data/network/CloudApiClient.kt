@@ -32,6 +32,12 @@ interface CloudApiClient {
     fun aiEditFiles(token: String, instruction: String): Result<AiFilePlanResult>
     fun commitProject(token: String, message: String): Result<ProjectCommitResult>
     fun projectCommits(token: String): Result<List<ProjectCommit>>
+    fun createBuildWorkflow(token: String): Result<ProjectFile>
+    fun startBuild(token: String, workflowPath: String, ref: String): Result<ProjectBuild>
+    fun builds(token: String): Result<List<ProjectBuild>>
+    fun build(token: String, buildId: String): Result<ProjectBuild>
+    fun refreshBuild(token: String, buildId: String): Result<ProjectBuild>
+    fun buildLogs(token: String, buildId: String): Result<BuildLogSummary>
 }
 
 class CloudApiClientImpl(
@@ -248,6 +254,105 @@ class CloudApiClientImpl(
         }
         commits
     }
+
+    override fun createBuildWorkflow(token: String): Result<ProjectFile> = runCatching {
+        val response = request("POST", "/api/projects/build-workflow", token, JSONObject())
+        response.optJSONObject("file")?.let(::fileFromJson)
+            ?: throw CloudApiError.Network("build workflow creation failed")
+    }
+
+    override fun startBuild(token: String, workflowPath: String, ref: String): Result<ProjectBuild> = runCatching {
+        val body = JSONObject().put("workflowPath", workflowPath).put("ref", ref)
+        val response = request("POST", "/api/projects/builds", token, body)
+        response.optJSONObject("build")?.let(::buildFromJson)
+            ?: throw CloudApiError.Network("build dispatch failed")
+    }
+
+    override fun builds(token: String): Result<List<ProjectBuild>> = runCatching {
+        val response = request("GET", "/api/projects/builds", token, null)
+        val array = response.optJSONArray("builds") ?: throw CloudApiError.Network("build list failed")
+        val result = ArrayList<ProjectBuild>()
+        for (index in 0 until array.length()) {
+            val item = array.optJSONObject(index) ?: continue
+            result.add(buildFromJson(item))
+        }
+        result
+    }
+
+    override fun build(token: String, buildId: String): Result<ProjectBuild> = runCatching {
+        val encoded = java.net.URLEncoder.encode(buildId, "UTF-8")
+        val response = request("GET", "/api/projects/build?buildId=$encoded", token, null)
+        response.optJSONObject("build")?.let(::buildFromJson)
+            ?: throw CloudApiError.Network("build lookup failed")
+    }
+
+    override fun refreshBuild(token: String, buildId: String): Result<ProjectBuild> = runCatching {
+        val body = JSONObject().put("buildId", buildId)
+        val response = request("POST", "/api/projects/build/refresh", token, body)
+        response.optJSONObject("build")?.let(::buildFromJson)
+            ?: throw CloudApiError.Network("build refresh failed")
+    }
+
+    override fun buildLogs(token: String, buildId: String): Result<BuildLogSummary> = runCatching {
+        val encoded = java.net.URLEncoder.encode(buildId, "UTF-8")
+        val response = request("GET", "/api/projects/build/logs?buildId=$encoded", token, null)
+        val jobsArray = response.optJSONArray("jobs") ?: throw CloudApiError.Network("build logs failed")
+        val jobs = ArrayList<BuildJob>()
+        for (index in 0 until jobsArray.length()) {
+            val item = jobsArray.optJSONObject(index) ?: continue
+            val stepsArray = item.optJSONArray("steps")
+            val steps = ArrayList<BuildJobStep>()
+            if (stepsArray != null) {
+                for (stepIndex in 0 until stepsArray.length()) {
+                    val step = stepsArray.optJSONObject(stepIndex) ?: continue
+                    steps.add(BuildJobStep(
+                        name = step.optString("name"),
+                        status = step.optString("status"),
+                        conclusion = if (step.isNull("conclusion")) null else step.optString("conclusion"),
+                    ))
+                }
+            }
+            jobs.add(BuildJob(
+                id = item.optLong("id"),
+                name = item.optString("name"),
+                status = item.optString("status"),
+                conclusion = if (item.isNull("conclusion")) null else item.optString("conclusion"),
+                steps = steps,
+            ))
+        }
+        val failedArray = response.optJSONArray("failedSteps")
+        val failedSteps = ArrayList<FailedStep>()
+        if (failedArray != null) {
+            for (index in 0 until failedArray.length()) {
+                val item = failedArray.optJSONObject(index) ?: continue
+                failedSteps.add(FailedStep(item.optString("job"), item.optString("step")))
+            }
+        }
+        BuildLogSummary(
+            buildId = response.optString("buildId"),
+            runId = response.optLong("runId"),
+            status = response.optString("status"),
+            conclusion = if (response.isNull("conclusion")) null else response.optString("conclusion"),
+            logsUrl = response.optString("logsUrl"),
+            jobs = jobs,
+            failedSteps = failedSteps,
+        )
+    }
+
+    private fun buildFromJson(json: JSONObject): ProjectBuild = ProjectBuild(
+        id = json.optString("id"),
+        status = json.optString("status"),
+        conclusion = if (json.isNull("conclusion")) null else json.optString("conclusion"),
+        progress = json.optInt("progress"),
+        workflowPath = json.optString("workflowPath"),
+        ref = json.optString("ref"),
+        runId = if (json.isNull("runId")) null else json.optLong("runId"),
+        runUrl = if (json.isNull("runUrl")) null else json.optString("runUrl"),
+        logsUrl = if (json.isNull("logsUrl")) null else json.optString("logsUrl"),
+        error = if (json.isNull("error")) null else json.optString("error"),
+        createdAt = json.optLong("createdAt"),
+        updatedAt = json.optLong("updatedAt"),
+    )
 
     private fun fileFromJson(json: JSONObject): ProjectFile = ProjectFile(
         path = json.optString("path"),

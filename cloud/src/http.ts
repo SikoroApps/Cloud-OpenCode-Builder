@@ -21,6 +21,10 @@ import {
   markProjectFileCommitted,
   recordProjectCommit,
   listProjectCommits,
+  saveBuild,
+  findBuild,
+  listBuilds,
+  updateBuild,
 } from "./db.ts";
 import { loadConfig, type CloudConfig, type GithubConfig } from "./config.ts";
 import { createGithubService, decryptToken, encryptToken, isGithubConfigured, type GithubService } from "./github.ts";
@@ -380,7 +384,166 @@ export async function handleApiRequest(
     }
     return;
   }
+  if (req.method === "POST" && path === "/api/projects/build-workflow") {
+    try {
+      const { project } = requireSelectedProject(auth.userId, deps);
+      const workflowPath = ".github/workflows/android-build.yml";
+      saveProjectFile({
+        projectId: String(project.id),
+        path: workflowPath,
+        content: defaultBuildWorkflow(),
+        now: Date.now(),
+      });
+      sendJson(res, 200, { file: fileDto(findProjectFile(String(project.id), workflowPath)) });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
+  if (req.method === "POST" && path === "/api/projects/builds") {
+    try {
+      const { token, project } = requireSelectedProject(auth.userId, deps);
+      const body = await readJson(req);
+      const workflowPath = String(body?.workflowPath || ".github/workflows/android-build.yml");
+      const ref = String(body?.ref || String(project.defaultBranch));
+      if (!/^\.github\/workflows\/[A-Za-z0-9_.-]+\.ya?ml$/.test(workflowPath) || !/^[A-Za-z0-9_./-]{1,200}$/.test(ref)) {
+        throw new ApiRequestError(400, "invalid_request");
+      }
+      await deps.githubService.dispatchWorkflow(token, {
+        owner: String(project.repoOwner),
+        repo: String(project.repoName),
+        workflowPath,
+        ref,
+      });
+      const buildId = randomUUID();
+      saveBuild({
+        id: buildId,
+        projectId: String(project.id),
+        status: "queued",
+        conclusion: null,
+        progress: 0,
+        workflowPath,
+        ref,
+        runId: null,
+        runUrl: null,
+        logsUrl: null,
+        error: null,
+        now: Date.now(),
+      });
+      sendJson(res, 201, { build: buildDto(findBuild(buildId)) });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
+  if (req.method === "GET" && path === "/api/projects/builds") {
+    try {
+      const { project } = requireSelectedProject(auth.userId, deps);
+      sendJson(res, 200, { builds: listBuilds(String(project.id)).map(buildDto) });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
+  if (req.method === "GET" && path === "/api/projects/build") {
+    try {
+      const build = requireBuild(auth.userId, deps, url.searchParams.get("buildId") || "");
+      sendJson(res, 200, { build: buildDto(build) });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
+  if (req.method === "POST" && path === "/api/projects/build/refresh") {
+    try {
+      const build = await refreshBuild(auth.userId, deps, (await readJson(req))?.buildId);
+      sendJson(res, 200, { build: buildDto(build) });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
+  if (req.method === "GET" && path === "/api/projects/build/logs") {
+    try {
+      const { token, project } = requireSelectedProject(auth.userId, deps);
+      const build = requireBuildForProject(auth.userId, deps, url.searchParams.get("buildId") || "", String(project.id));
+      if (!build.runId) throw new ApiRequestError(409, "build_not_started");
+      const jobs = await deps.githubService.listWorkflowJobs(token, {
+        owner: String(project.repoOwner),
+        repo: String(project.repoName),
+        runId: Number(build.runId),
+      });
+      const failedSteps = jobs.flatMap((job) => job.steps
+        .filter((step) => step.conclusion === "failure")
+        .map((step) => ({ job: job.name, step: step.name })));
+      sendJson(res, 200, {
+        buildId: String(build.id),
+        runId: Number(build.runId),
+        status: String(build.status),
+        conclusion: build.conclusion ? String(build.conclusion) : null,
+        logsUrl: build.runUrl ? String(build.runUrl) : "",
+        jobs: jobs.map(jobDto),
+        failedSteps,
+      });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
   sendJson(res, 404, { error: "not_found" });
+}
+
+function requireBuildForProject(userId: string, deps: ApiDependencies, buildId: string, projectId: string): any {
+  const build = findBuild(buildId);
+  if (!build || String(build.projectId) !== projectId) throw new ApiRequestError(404, "build_not_found");
+  return build;
+}
+
+function requireBuild(userId: string, deps: ApiDependencies, buildId: string): any {
+  const { project } = requireSelectedProject(userId, deps);
+  return requireBuildForProject(userId, deps, buildId, String(project.id));
+}
+
+async function refreshBuild(userId: string, deps: ApiDependencies, rawBuildId: unknown): Promise<any> {
+  const { token, project } = requireSelectedProject(userId, deps);
+  const buildId = String(rawBuildId || "");
+  const build = requireBuildForProject(userId, deps, buildId, String(project.id));
+  const owner = String(project.repoOwner);
+  const repo = String(project.repoName);
+  let run;
+  if (build.runId) {
+    run = await deps.githubService.getWorkflowRun(token, { owner, repo, runId: Number(build.runId) });
+  } else {
+    const runs = await deps.githubService.listWorkflowRuns(token, {
+      owner,
+      repo,
+      workflowPath: String(build.workflowPath),
+      ref: String(build.ref),
+      createdAfter: Number(build.createdAt),
+    });
+    run = runs[0];
+  }
+  if (!run) return findBuild(buildId);
+  const jobs = await deps.githubService.listWorkflowJobs(token, { owner, repo, runId: run.id });
+  const completedJobs = jobs.filter((job) => job.status === "completed").length;
+  const progress = jobs.length
+    ? Math.round((completedJobs / jobs.length) * 100)
+    : run.status === "completed" ? 100 : 10;
+  const status = run.status === "completed" ? "completed" : "in_progress";
+  const conclusion = run.status === "completed" ? (run.conclusion || "unknown") : null;
+  const error = status === "completed" && conclusion !== "success" ? `build_${conclusion}` : null;
+  updateBuild({
+    id: buildId,
+    status,
+    conclusion,
+    progress,
+    runId: run.id,
+    runUrl: run.htmlUrl,
+    logsUrl: run.htmlUrl,
+    error,
+    now: Date.now(),
+  });
+  return findBuild(buildId);
 }
 
 function requireSelectedProject(userId: string, deps: ApiDependencies): { token: string; project: any } {
@@ -425,7 +588,7 @@ function safeGithubError(error: unknown): string {
   if (error instanceof ApiRequestError) return error.code;
   const candidate = error as { code?: unknown; message?: unknown };
   const isSafeCode = (value: unknown): value is string =>
-    typeof value === "string" && (SAFE_ERROR_CODES.has(value) || /^(github_|repository_|file_|invalid_ai_|unsupported_file_)/.test(value));
+    typeof value === "string" && (SAFE_ERROR_CODES.has(value) || /^(github_|repository_|file_|workflow_|invalid_ai_|unsupported_file_)/.test(value));
   if (isSafeCode(candidate?.code)) return candidate.code;
   if (isSafeCode(candidate?.message)) return candidate.message;
   return "internal_error";
@@ -481,6 +644,60 @@ function projectDto(project: any | undefined): Record<string, unknown> | null {
     defaultBranch: String(project.defaultBranch),
     htmlUrl: String(project.htmlUrl),
   };
+}
+
+function buildDto(build: any): Record<string, unknown> {
+  return {
+    id: String(build.id),
+    status: String(build.status),
+    conclusion: build.conclusion ? String(build.conclusion) : null,
+    progress: Number(build.progress),
+    workflowPath: String(build.workflowPath),
+    ref: String(build.ref),
+    runId: build.runId ? Number(build.runId) : null,
+    runUrl: build.runUrl ? String(build.runUrl) : null,
+    logsUrl: build.logsUrl ? String(build.logsUrl) : null,
+    error: build.error ? String(build.error) : null,
+    createdAt: Number(build.createdAt),
+    updatedAt: Number(build.updatedAt),
+  };
+}
+
+function jobDto(job: { id: number; name: string; status: string; conclusion: string | null; steps: { name: string; status: string; conclusion: string | null }[] }): Record<string, unknown> {
+  return {
+    id: job.id,
+    name: job.name,
+    status: job.status,
+    conclusion: job.conclusion,
+    steps: job.steps,
+  };
+}
+
+function defaultBuildWorkflow(): string {
+  return [
+    "name: Android build",
+    "on:",
+    "  workflow_dispatch:",
+    "permissions:",
+    "  contents: read",
+    "jobs:",
+    "  build:",
+    "    runs-on: ubuntu-latest",
+    "    steps:",
+    "      - uses: actions/checkout@v4",
+    "      - uses: actions/setup-java@v4",
+    "        with:",
+    "          distribution: temurin",
+    "          java-version: '17'",
+    "      - name: Assemble debug APK",
+    "        run: ./gradlew assembleDebug",
+    "      - name: Upload APK",
+    "        uses: actions/upload-artifact@v4",
+    "        with:",
+    "          name: app-debug-apk",
+    "          path: app/build/outputs/apk/debug/*.apk",
+    "",
+  ].join("\n");
 }
 
 function fileDto(file: any): Record<string, unknown> {

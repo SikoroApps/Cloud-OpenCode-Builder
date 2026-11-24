@@ -27,9 +27,13 @@ function githubConfig(configured = true): GithubConfig {
   };
 }
 
-function mockService(options: { failCommit?: boolean } = {}): GithubService {
+function mockService(options: { failCommit?: boolean; buildOutcome?: "success" | "failure" } = {}): GithubService {
   const files = new Map<string, string>([["README.md", "# existing-app"]]);
   let commitCount = 0;
+  let dispatched = false;
+  let runViews = 0;
+  let run: any = null;
+  let jobs: any[] = [];
   const repositories = [{
     id: 1,
     fullName: "octocat/existing-app",
@@ -81,6 +85,57 @@ function mockService(options: { failCommit?: boolean } = {}): GithubService {
       files.set(input.path, input.content);
       const sha = `commit-${commitCount}-${input.path.replace(/[^A-Za-z0-9_-]/g, "-")}`;
       return { sha, htmlUrl: `https://github.com/octocat/new-app/commit/${sha}` };
+    },
+    async dispatchWorkflow() {
+      dispatched = true;
+      const now = Date.now();
+      run = {
+        id: 99,
+        status: "in_progress",
+        conclusion: null,
+        createdAt: now,
+        updatedAt: now,
+        htmlUrl: "https://github.com/octocat/new-app/actions/runs/99",
+        headBranch: "main",
+        event: "workflow_dispatch",
+      };
+      jobs = [{
+        id: 7,
+        name: "build",
+        status: "in_progress",
+        conclusion: null,
+        steps: [
+          { name: "Checkout", status: "completed", conclusion: "success" },
+          { name: "Assemble", status: "in_progress", conclusion: null },
+        ],
+      }];
+    },
+    async listWorkflowRuns() {
+      if (!dispatched) return [];
+      return [run];
+    },
+    async getWorkflowRun() {
+      if (!run) throw new GithubServiceError("workflow_run_failed", 404);
+      runViews += 1;
+      if (runViews >= 1) {
+        const conclusion = options.buildOutcome === "failure" ? "failure" : "success";
+        run = { ...run, status: "completed", conclusion };
+        jobs = [{
+          id: 7,
+          name: "build",
+          status: "completed",
+          conclusion,
+          steps: [
+            { name: "Checkout", status: "completed", conclusion: "success" },
+            { name: "Assemble", status: "completed", conclusion },
+          ],
+        }];
+      }
+      return run;
+    },
+    async listWorkflowJobs() {
+      if (!run) throw new GithubServiceError("workflow_jobs_failed", 404);
+      return jobs;
     },
   };
 }
@@ -373,6 +428,111 @@ test("failed GitHub commit records the accurate provider error", async () => {
     const commits = ((await response.json()) as any).commits as any[];
     assert.equal(commits[0].status, "failed");
     assert.equal(commits[0].error, "file_commit_failed");
+  } finally {
+    await server.close();
+    closeDb();
+  }
+});
+
+test("build dispatch only reports success after a successful GitHub workflow result", async () => {
+  const server = await startServer(deps(true, mockService({ buildOutcome: "success" })));
+  try {
+    const auth = await registerAndConnect(server.baseUrl);
+    await createProject(server.baseUrl, auth);
+
+    let response = await fetch(`${server.baseUrl}/api/projects/build-workflow`, {
+      method: "POST",
+      headers: auth,
+    });
+    assert.equal(response.status, 200);
+    assert.equal(((await response.json()) as any).file.path, ".github/workflows/android-build.yml");
+
+    response = await fetch(`${server.baseUrl}/api/projects/builds`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    assert.equal(response.status, 201);
+    let build = ((await response.json()) as any).build;
+    assert.equal(build.status, "queued");
+    assert.equal(build.runId, null);
+    assert.equal(JSON.stringify(build).includes("gh-token-do-not-expose"), false);
+    const buildId = String(build.id);
+
+    response = await fetch(`${server.baseUrl}/api/projects/build/refresh`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ buildId }),
+    });
+    assert.equal(response.status, 200);
+    build = ((await response.json()) as any).build;
+    assert.equal(build.status, "in_progress");
+    assert.equal(build.runId, 99);
+    assert.equal(build.conclusion, null);
+
+    response = await fetch(`${server.baseUrl}/api/projects/build/logs?buildId=${buildId}`, { headers: auth });
+    assert.equal(response.status, 200);
+    const logs = (await response.json()) as any;
+    assert.equal(logs.runId, 99);
+    assert.equal(logs.jobs[0].name, "build");
+    assert.equal(logs.failedSteps.length, 0);
+
+    response = await fetch(`${server.baseUrl}/api/projects/build/refresh`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ buildId }),
+    });
+    build = ((await response.json()) as any).build;
+    assert.equal(build.status, "completed");
+    assert.equal(build.conclusion, "success");
+    assert.equal(build.progress, 100);
+    assert.equal(build.error, null);
+
+    response = await fetch(`${server.baseUrl}/api/projects/builds`, { headers: auth });
+    const builds = ((await response.json()) as any).builds as any[];
+    assert.equal(builds[0].conclusion, "success");
+    assert.equal(JSON.stringify(builds).includes("gh-token-do-not-expose"), false);
+  } finally {
+    await server.close();
+    closeDb();
+  }
+});
+
+test("failed GitHub workflow is reported as a failure with failed steps", async () => {
+  const server = await startServer(deps(true, mockService({ buildOutcome: "failure" })));
+  try {
+    const auth = await registerAndConnect(server.baseUrl);
+    await createProject(server.baseUrl, auth);
+    let response = await fetch(`${server.baseUrl}/api/projects/builds`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    assert.equal(response.status, 201);
+    const buildId = String(((await response.json()) as any).build.id);
+
+    response = await fetch(`${server.baseUrl}/api/projects/build/refresh`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ buildId }),
+    });
+    assert.equal(((await response.json()) as any).build.status, "in_progress");
+
+    response = await fetch(`${server.baseUrl}/api/projects/build/refresh`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ buildId }),
+    });
+    const build = ((await response.json()) as any).build;
+    assert.equal(build.status, "completed");
+    assert.equal(build.conclusion, "failure");
+    assert.equal(build.error, "build_failure");
+
+    response = await fetch(`${server.baseUrl}/api/projects/build/logs?buildId=${buildId}`, { headers: auth });
+    const logs = (await response.json()) as any;
+    assert.equal(logs.conclusion, "failure");
+    assert.equal(logs.failedSteps[0].step, "Assemble");
+    assert.equal(JSON.stringify(logs).includes("gh-token-do-not-expose"), false);
   } finally {
     await server.close();
     closeDb();

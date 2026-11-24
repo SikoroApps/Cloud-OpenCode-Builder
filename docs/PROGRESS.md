@@ -101,7 +101,7 @@ deployment and provider secrets are external follow-on dependencies.
 
 ## Phase 3 — GitHub Integration & Cloud Android Builds
 
-Status: **BATCHES 3.1–3.3 IMPLEMENTED, LIVE VERIFICATION BLOCKED**; started from Phase 2 HEAD
+Status: **BATCHES 3.1–3.4 IMPLEMENTED, LIVE VERIFICATION BLOCKED**; started from Phase 2 HEAD
 `09c4d94` without rewriting Phase 2.
 
 ### Batch 3.1 evidence
@@ -139,9 +139,18 @@ Status: **BATCHES 3.1–3.3 IMPLEMENTED, LIVE VERIFICATION BLOCKED**; started fr
 - CI on commit `285a7b2`: `Cloud Backend CI` `45355223253` **success** and `Android CI`
   `45355223014` **success** (all three jobs, including HTTPS integration).
 
+### Batch 3.4 evidence
+
+- Backend workflow template creation, `workflow_dispatch` trigger, run refresh from actual GitHub
+  status/conclusion, build history and job/failed-step log summaries implemented.
+- `cd cloud && npm test`: **24 passed, 0 failures** (8 Phase 2 + 16 Phase 3 tests).
+- Controlled tests verify queued → in_progress → success and queued → in_progress → failure paths;
+  success is only recorded after a completed successful GitHub run.
+- Android client gained build methods; HTTPS integration checks unconfigured build endpoints fail
+  safely. CI evidence for this batch is pending the commit push.
+
 ### Blocked
 
 - No GitHub OAuth App client ID/secret or callback domain was provided, so live OAuth,
-  connect/disconnect, repository operations and commits cannot be tested.
-- Actions orchestration, APK delivery and signed release preparation remain next in dependency
-  order.
+  connect/disconnect, repository operations, commits and Actions runs cannot be tested.
+- APK delivery and signed release preparation remain next in dependency order.

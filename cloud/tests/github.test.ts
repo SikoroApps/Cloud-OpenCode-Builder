@@ -134,6 +134,73 @@ test("file reads and commits use the GitHub contents API safely", async () => {
   assert.equal(Buffer.from(writeBody.content, "base64").toString("utf8"), "class Hello\n");
 });
 
+test("workflow dispatch and monitoring use actual GitHub run results", async () => {
+  let dispatchBody = "";
+  const now = Date.now();
+  const runPayload = {
+    id: 99,
+    status: "in_progress",
+    conclusion: null,
+    created_at: new Date(now).toISOString(),
+    updated_at: new Date(now).toISOString(),
+    html_url: "https://github.com/octocat/app/actions/runs/99",
+    head_branch: "main",
+    event: "workflow_dispatch",
+  };
+  const service = createGithubService(config(), (async (input: any, init: any) => {
+    const url = String(input);
+    assert.equal(init.headers.Authorization, "Bearer token");
+    if (url.endsWith("/dispatches")) {
+      dispatchBody = String(init.body);
+      return new Response(null, { status: 204 });
+    }
+    if (url.includes("/workflows/android-build.yml/runs")) {
+      return new Response(JSON.stringify({ workflow_runs: [
+        runPayload,
+        { ...runPayload, id: 98, event: "push" },
+      ] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (url.endsWith("/actions/runs/99/jobs")) {
+      return new Response(JSON.stringify({ jobs: [{
+        id: 7,
+        name: "build",
+        status: "in_progress",
+        conclusion: null,
+        steps: [
+          { name: "Checkout", status: "completed", conclusion: "success" },
+          { name: "Assemble", status: "in_progress", conclusion: null },
+        ],
+      }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response(JSON.stringify(runPayload), { status: 200, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch);
+
+  await service.dispatchWorkflow("token", {
+    owner: "octocat",
+    repo: "app",
+    workflowPath: ".github/workflows/android-build.yml",
+    ref: "main",
+  });
+  assert.deepEqual(JSON.parse(dispatchBody), { ref: "main" });
+
+  const runs = await service.listWorkflowRuns("token", {
+    owner: "octocat",
+    repo: "app",
+    workflowPath: ".github/workflows/android-build.yml",
+    ref: "main",
+    createdAfter: now - 1000,
+  });
+  assert.deepEqual(runs.map((run) => run.id), [99]);
+
+  const run = await service.getWorkflowRun("token", { owner: "octocat", repo: "app", runId: 99 });
+  assert.equal(run.status, "in_progress");
+  assert.equal(run.conclusion, null);
+
+  const jobs = await service.listWorkflowJobs("token", { owner: "octocat", repo: "app", runId: 99 });
+  assert.equal(jobs[0].steps.length, 2);
+  assert.equal(jobs[0].steps[0].conclusion, "success");
+});
+
 test("OAuth code exchange succeeds and never echoes provider errors with token material", async () => {
   const service = createGithubService(config(), (async (input: any, init: any) => {
     assert.equal(String(input), "https://github.com/login/oauth/access_token");

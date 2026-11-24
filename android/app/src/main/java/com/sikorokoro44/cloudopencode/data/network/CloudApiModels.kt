@@ -105,6 +105,50 @@ data class ProjectCommit(
     val createdAt: Long,
 )
 
+data class ProjectBuild(
+    val id: String,
+    val status: String,
+    val conclusion: String?,
+    val progress: Int,
+    val workflowPath: String,
+    val ref: String,
+    val runId: Long?,
+    val runUrl: String?,
+    val logsUrl: String?,
+    val error: String?,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+data class BuildJobStep(
+    val name: String,
+    val status: String,
+    val conclusion: String?,
+)
+
+data class BuildJob(
+    val id: Long,
+    val name: String,
+    val status: String,
+    val conclusion: String?,
+    val steps: List<BuildJobStep>,
+)
+
+data class FailedStep(
+    val job: String,
+    val step: String,
+)
+
+data class BuildLogSummary(
+    val buildId: String,
+    val runId: Long,
+    val status: String,
+    val conclusion: String?,
+    val logsUrl: String,
+    val jobs: List<BuildJob>,
+    val failedSteps: List<FailedStep>,
+)
+
 sealed class CloudApiError(message: String) : Exception(message) {
     data class Http(val code: Int, val errorMessage: String) : CloudApiError(errorMessage)
     data class Network(val errorMessage: String) : CloudApiError(errorMessage)

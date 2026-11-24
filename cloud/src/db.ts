@@ -88,6 +88,21 @@ export function getDb(path: string): DatabaseSync {
       error TEXT,
       created_at INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS project_builds (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      conclusion TEXT,
+      progress INTEGER NOT NULL DEFAULT 0,
+      workflow_path TEXT NOT NULL,
+      ref TEXT NOT NULL,
+      run_id INTEGER,
+      run_url TEXT,
+      logs_url TEXT,
+      error TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
   `);
   return db;
 }
@@ -362,4 +377,88 @@ export function listProjectCommits(projectId: string, limit = 20): any[] {
        FROM project_commits WHERE project_id = ? ORDER BY created_at DESC LIMIT ?`,
     )
     .all(projectId, limit) as any[];
+}
+
+export function saveBuild(input: {
+  id: string;
+  projectId: string;
+  status: string;
+  conclusion: string | null;
+  progress: number;
+  workflowPath: string;
+  ref: string;
+  runId: number | null;
+  runUrl: string | null;
+  logsUrl: string | null;
+  error: string | null;
+  now: number;
+}): void {
+  getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite").prepare(
+    `INSERT INTO project_builds
+      (id, project_id, status, conclusion, progress, workflow_path, ref, run_id, run_url, logs_url, error, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    input.id,
+    input.projectId,
+    input.status,
+    input.conclusion,
+    input.progress,
+    input.workflowPath,
+    input.ref,
+    input.runId,
+    input.runUrl,
+    input.logsUrl,
+    input.error,
+    input.now,
+    input.now,
+  );
+}
+
+export function findBuild(buildId: string): any | undefined {
+  return getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare(
+      `SELECT id, project_id AS projectId, status, conclusion, progress, workflow_path AS workflowPath,
+              ref, run_id AS runId, run_url AS runUrl, logs_url AS logsUrl, error,
+              created_at AS createdAt, updated_at AS updatedAt
+       FROM project_builds WHERE id = ?`,
+    )
+    .get(buildId) as any;
+}
+
+export function listBuilds(projectId: string, limit = 20): any[] {
+  return getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare(
+      `SELECT id, project_id AS projectId, status, conclusion, progress, workflow_path AS workflowPath,
+              ref, run_id AS runId, run_url AS runUrl, logs_url AS logsUrl, error,
+              created_at AS createdAt, updated_at AS updatedAt
+       FROM project_builds WHERE project_id = ? ORDER BY created_at DESC LIMIT ?`,
+    )
+    .all(projectId, limit) as any[];
+}
+
+export function updateBuild(input: {
+  id: string;
+  status: string;
+  conclusion: string | null;
+  progress: number;
+  runId: number | null;
+  runUrl: string | null;
+  logsUrl: string | null;
+  error: string | null;
+  now: number;
+}): void {
+  getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite").prepare(
+    `UPDATE project_builds SET status = ?, conclusion = ?, progress = ?, run_id = ?, run_url = ?,
+      logs_url = ?, error = ?, updated_at = ? WHERE id = ?`,
+  ).run(
+    input.status,
+    input.conclusion,
+    input.progress,
+    input.runId,
+    input.runUrl,
+    input.logsUrl,
+    input.error,
+    input.now,
+    input.id,
+  );
 }
