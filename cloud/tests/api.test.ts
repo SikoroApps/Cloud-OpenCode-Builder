@@ -25,7 +25,7 @@ function startServer(dbPath: string): ChildProcess {
 }
 
 async function waitForHealth(child: ChildProcess): Promise<void> {
-  for (let attempt = 0; attempt < 50; attempt += 1) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
     if (child.exitCode !== null) throw new Error("server exited before becoming healthy");
     try {
       const response = await fetch(`${baseUrl}/health`);
@@ -41,6 +41,15 @@ async function waitForHealth(child: ChildProcess): Promise<void> {
 async function stopServer(child: ChildProcess): Promise<void> {
   child.kill("SIGTERM");
   await new Promise<void>((resolve) => child.once("exit", () => resolve()));
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    try {
+      await fetch(`${baseUrl}/health`);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    } catch {
+      return;
+    }
+  }
+  throw new Error("server port was not released after shutdown");
 }
 
 test("chat history and session auth persist across server restarts (stubbed AI, simulated)", async () => {

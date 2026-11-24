@@ -238,9 +238,14 @@ Started from the unchanged Phase 4 checkpoint `d136bda`. Detailed per-batch evid
   the checker reports these as blockers without printing values.
 - Safe deployment artifacts added without external credentials: a GHCR publish workflow using the
   built-in `GITHUB_TOKEN`, a Compose/Caddy single-host HTTPS shape with persistent SQLite, and
-  `deploy/.env.example` with variable names only. YAML parsed successfully locally. No live host or
-  deployment is claimed; the exact missing items are a Docker host, DNS domain and configured
-  secrets in `deploy/.env`.
+  `deploy/.env.example` with variable names only. YAML parsed successfully locally.
+- The first publish run `45452801808` failed on GHCR's lowercase-name rule; fixed by normalizing the
+  owner. The corrected `Publish backend image` run `45453671505` on `7c77c06` is **success**.
+- Anonymous GHCR manifest access returned HTTP 401 and the CLI token lacks `read:packages`, so
+  package visibility/pull is unverified. Set the package public or pull with a `read:packages`
+  token on the host.
+- No live host or deployment is claimed; the exact missing items are a Docker host, DNS domain and
+  configured secrets in `deploy/.env`.
 
 ### Batch 5.2 evidence
 
@@ -274,6 +279,16 @@ Started from the unchanged Phase 4 checkpoint `d136bda`. Detailed per-batch evid
   and missing evidence artifact.
 - No real signed APK, download link or device-installable artifact exists here; signing secrets and
   a live release run remain external blockers.
+- Added `scripts/check-signing-secrets.mjs` (secret names only, never values). Repository Actions
+  secrets are confirmed empty, so all four signing names are missing.
+- Compose now starts Caddy only after the backend Docker health check reports healthy.
+- Added `scripts/inspect-apk.mjs` for SDK-free archive/manifest inspection. Applied to the real debug
+  APK artifact `14949062673` from Android CI `45453671763` (`7c77c06`): ZIP integrity passed,
+  SHA-256 `c85777ad70b1bb940ef2e998e0a8fe3e95a1c39c8c38908430dd8271f323acf3`, package
+  `com.sikorokoro44.cloudopencode.debug`, version `0.1.0` (code `1`), minSdk `26`, targetSdk `35`,
+  four ABIs. This is a **debug** APK, not a signed release; no local signature verification was run.
+- GHCR anonymous pull remains inconclusive: a known public control package also returned HTTP 403
+  from this environment, and the CLI token lacks `read:packages`. The publish run itself succeeded.
 
 ### Batch 5.6 evidence
 

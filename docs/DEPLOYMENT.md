@@ -56,6 +56,17 @@ automatic certificate. Simplest setup:
 4. Verify: `curl -fsS https://<CLOUD_DOMAIN>/health`.
 5. Run `npm run check:deployment` against the deployed environment; it prints only booleans and
    blocker codes.
+6. For a signed release in a generated app repository, check secret names only with
+   `node scripts/check-signing-secrets.mjs <owner>/<app-repo>`.
+
+Caddy waits for the backend container's Docker `HEALTHCHECK` to report healthy before starting, so a
+broken backend does not receive HTTPS traffic. The backend port is bound to `127.0.0.1` only; public
+traffic must go through Caddy.
+
+GHCR packages may default to private. If the host should pull anonymously, set the package
+visibility to public in the GitHub Packages settings. Otherwise authenticate the host with a token
+that has `read:packages`. Anonymous manifest access returned HTTP 401 during Phase 5 verification,
+so anonymous pulling was not confirmed.
 
 This is a deployment shape and a published artifact, **not** a claim that a live deployment exists.
 A host, DNS domain and configured secrets are still required, and no credential is requested here.

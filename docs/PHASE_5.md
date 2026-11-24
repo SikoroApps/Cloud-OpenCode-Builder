@@ -51,11 +51,17 @@ See `docs/DEPLOYMENT.md` for the exact deployment contract and safe verification
 
 - `.github/workflows/publish-backend-image.yml` publishes a deployable image to GHCR on `main` using
   only the built-in `GITHUB_TOKEN`; no external credential is required. Image tags: `:latest` and
-  `:sha-<commit>`.
+  `:sha-<commit>`. Verified **success** on commit `7c77c06` (run `45453671505`) after normalizing the
+  owner to lowercase; image name is `ghcr.io/sikoroapps/cloud-opencode-backend`.
 - `deploy/docker-compose.yml`, `deploy/Caddyfile` and `deploy/.env.example` provide a single-host
   HTTPS deployment shape with a persistent SQLite volume and a loopback-only backend port.
 - `docs/DEPLOYMENT.md` records the exact five-step host setup. These artifacts are not a live
   deployment claim.
+- Anonymous GHCR manifest access returned HTTP 401 for the package, but a control probe against a
+  known public GHCR package returned HTTP 403 from this environment, so anonymous pull is
+  **inconclusive**, not proven private. The current CLI token lacks `read:packages`. Exact
+  requirement: confirm/set package visibility to public in GitHub Packages settings, or pull on the
+  host with a token that has `read:packages`.
 
 ### Blocked
 
@@ -139,6 +145,8 @@ by the missing OAuth connection and deployed backend.
   package name, version and supported architectures. `verified` is false on any mismatch or missing
   evidence.
 - Existing APK download link, `X-APK-Sha256` header and checksum endpoint are preserved.
+- Added `scripts/check-signing-secrets.mjs`, which lists only the four required signing secret
+  **names** via `gh secret list` and never reads values. It exits `0` only when all four are present.
 
 ### Verified
 
@@ -146,6 +154,14 @@ by the missing OAuth connection and deployed backend.
   3 API verification tests).
 - Controlled tests prove valid evidence verifies, checksum mismatch fails, and missing evidence
   artifact blocks verification. Templates still contain no signing values.
+- Repository Actions secret listing is empty here, so the signing preflight correctly reports the
+  four required names as missing (run after network access to `gh`).
+- Real **debug** APK artifact `14949062673` from Android CI `45453671763` on `7c77c06` was downloaded
+  and inspected: ZIP integrity passed, APK SHA-256 is
+  `c85777ad70b1bb940ef2e998e0a8fe3e95a1c39c8c38908430dd8271f323acf3`, package
+  `com.sikorokoro44.cloudopencode.debug`, version `0.1.0` (code `1`), minSdk `26`, targetSdk `35`,
+  ABIs `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`. This is **not** a signed production release and
+  no cryptographic signature verification was performed locally.
 
 ### Blocked
 

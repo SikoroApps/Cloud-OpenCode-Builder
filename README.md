@@ -116,4 +116,5 @@ GHCR image-publish workflow and a Compose/Caddy single-host HTTPS deployment sha
 `.github/workflows/publish-backend-image.yml` and `deploy/`; they are artifacts, not a live deployment.
 Live OAuth, a deployed HTTPS backend, an application-dispatched GitHub Actions run, a real signed
 APK and physical-device verification remain externally blocked; no such result is claimed without
-evidence.
+evidence. A real **debug** APK artifact from CI was downloaded and SHA-256 verified as a build
+artifact only (see `docs/PHASE_5.md`); it is not a signed production release.
