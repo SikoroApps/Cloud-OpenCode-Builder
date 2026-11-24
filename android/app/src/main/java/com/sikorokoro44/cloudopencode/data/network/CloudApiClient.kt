@@ -2,11 +2,11 @@ package com.sikorokoro44.cloudopencode.data.network
 
 import com.sikorokoro44.cloudopencode.BuildConfig
 import java.util.concurrent.TimeUnit
-import okhttp3.MediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody
 import okhttp3.Response
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 
 interface CloudApiClient {
@@ -118,15 +118,17 @@ class CloudApiClientImpl(
     )
 
     private fun request(method: String, path: String, token: String?, body: JSONObject?): JSONObject {
-        val mediaType = MediaType.get("application/json; charset=utf-8") ?: throw IllegalStateException("media type required")
+        if (!isSecureUrl(configuredBaseUrl)) {
+            throw CloudApiError.Network("backend URL must be an allowed HTTPS URL")
+        }
+        val mediaType = "application/json; charset=utf-8".toMediaType()
         val builder = Request.Builder()
-            .url(configuredBaseUrl + path)
+            .url(configuredBaseUrl.trimEnd('/') + path)
         if (token != null) builder.addHeader("Authorization", "Bearer $token")
-        val httpMethod = Request.Method.valueOf(method)
         val request: Request = if (body != null) {
-            builder.method(httpMethod, RequestBody.create(mediaType, body.toString())).build()
+            builder.method(method, body.toString().toRequestBody(mediaType)).build()
         } else {
-            builder.method(httpMethod).build()
+            builder.method(method, null).build()
         }
         val response: Response = okHttpClient.newCall(request).execute()
         val responseBody = response.body?.string().orEmpty()

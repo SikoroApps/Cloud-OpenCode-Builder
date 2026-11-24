@@ -37,6 +37,15 @@ export async function runAiFallback(input: {
   maxAttempts?: number;
   providerFor?: (candidate: FallbackCandidate) => ReturnType<typeof createAiProvider>;
 }): Promise<AiRunResult> {
+  if (process.env.CLOUD_AI_STUB === "1") {
+    const lastUser = [...input.messages].reverse().find((message) => message.role === "user");
+    return {
+      model: "stub/local-test",
+      content: `STUB:${lastUser?.content ?? ""}`,
+      finishReason: "stop",
+      attempts: [],
+    };
+  }
   const maxAttempts = Math.max(1, Math.min(input.maxAttempts ?? FALLBACK_CHAIN.length, FALLBACK_CHAIN.length));
   const attempts: AiAttemptResult[] = [];
   const providerFor = input.providerFor ?? ((candidate: FallbackCandidate) => createAiProvider(candidate));

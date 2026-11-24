@@ -28,7 +28,13 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun CloudOpenCodeApp() {
-    val backendClient = remember { CloudApiClientImpl(BuildConfig.CLOUD_BASE_URL) }
+    val allowedHosts = remember {
+        BuildConfig.CLOUD_HOST_ALLOWLIST.split(',')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toSet()
+    }
+    val backendClient = remember { CloudApiClientImpl(BuildConfig.CLOUD_BASE_URL, allowedHosts) }
     val backendReady = remember { backendClient.isSecureUrl(backendClient.baseUrl()) }
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {

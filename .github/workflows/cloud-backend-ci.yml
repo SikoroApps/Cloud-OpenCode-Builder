@@ -45,3 +45,6 @@ jobs:
           done
           cat /tmp/cloud-opencode-health.json
           echo
+      - name: Verify container image builds
+        working-directory: cloud
+        run: docker build -t cloud-opencode-backend:ci .

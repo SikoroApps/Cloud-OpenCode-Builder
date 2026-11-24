@@ -20,4 +20,10 @@ class CloudApiClientSecureUrlTest {
         assertTrue(restricted.isSecureUrl("https://api.example.invalid/health"))
         assertFalse(restricted.isSecureUrl("https://evil.example.invalid/health"))
     }
+
+    @Test
+    fun requestsRefuseNonHttpsBackend() {
+        val insecure = CloudApiClientImpl("http://api.example.invalid")
+        assertTrue(insecure.history("token", "session").isFailure)
+    }
 }

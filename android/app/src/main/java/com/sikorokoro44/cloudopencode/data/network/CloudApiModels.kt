@@ -35,6 +35,6 @@ data class CloudChatResponse(
 )
 
 sealed class CloudApiError(message: String) : Exception(message) {
-    data class Http(val code: Int, errorMessage: String) : CloudApiError(errorMessage)
-    data class Network(errorMessage: String) : CloudApiError(errorMessage)
+    data class Http(val code: Int, val errorMessage: String) : CloudApiError(errorMessage)
+    data class Network(val errorMessage: String) : CloudApiError(errorMessage)
 }
