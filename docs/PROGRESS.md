@@ -355,16 +355,24 @@ fallback order or Phases 1–5.
 `npm run check:deployment` pass. Local Android compilation was unavailable because this environment
 has no JDK/Android SDK, so the Android verification used GitHub-hosted CI.
 
-### Phases 6–8 CI evidence on `cc662d0`
+### Latest Phases 6–8 CI evidence on `c385b48`
 
-- `Cloud Backend CI` `45503752952`: **success** (73 tests, typecheck, masked checks, health smoke,
-  container build).
-- `Android CI` `45503752923`: **success** (unit tests, backend core tests, lint, debug APK,
-  package/secret checks, API 35 emulator smoke and HTTPS backend integration).
-- `Publish backend image` `45503752574`: **success**.
+- `Cloud Backend CI` `45508407051`: **success** (74/74 tests, typecheck, masked checks, health
+  smoke, container build).
+- `Android CI` `45508407058`: **success** (unit tests, backend core tests, lint, debug APK,
+  package/secret checks, API 35 emulator smoke, and HTTPS integration covering image upload/list/
+  analysis, image generation, web search and the task lifecycle).
+- `Publish backend image` `45508407050`: **success**.
 - Downloaded debug APK artifact `app-debug.apk` from the Android run: 10,052,948 bytes, SHA-256
-  `28f0929e3f5b78e543324c00f82b6b3ff427cce61a50c15d0a4ba8a08149b068`. This is still a debug
+  `540a29f82cb207c76ec589a0c5d03c51923f42f397ef1b6cad965d4605d2a542`. This is still a debug
   artifact, not a signed release.
+
+### Earlier checkpoint `cc662d0`
+
+- `Cloud Backend CI` `45503752952`: **success** (73 tests at that commit).
+- `Android CI` `45503752923`: **success** (new client methods compiled; debug APK SHA-256
+  `28f0929e3f5b78e543324c00f82b6b3ff427cce61a50c15d0a4ba8a08149b068`).
+- `Publish backend image` `45503752574`: **success**.
 
 Live production gates (deployed HTTPS, GitHub OAuth consent, signing secrets, signed APK, physical
 device) remain outstanding.

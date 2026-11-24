@@ -127,7 +127,8 @@ export function normalizeResultUrl(raw: string): string | null {
   if (candidate.startsWith("//")) candidate = `https:${candidate}`;
   try {
     const parsed = new URL(candidate);
-    if (parsed.hostname.endsWith("duckduckgo.com") && parsed.pathname.startsWith("/l/")) {
+    const isDuckDuckGoHost = parsed.hostname === "duckduckgo.com" || parsed.hostname.endsWith(".duckduckgo.com");
+    if (isDuckDuckGoHost && parsed.pathname.startsWith("/l/")) {
       const target = parsed.searchParams.get("uddg");
       if (target) {
         const targetUrl = new URL(target);

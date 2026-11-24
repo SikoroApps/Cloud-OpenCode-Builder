@@ -30,7 +30,10 @@ Run from `android/`:
 - `./gradlew connectedDebugAndroidTest` — emulator instrumentation tests.
 
 CI runs all of the above on GitHub-hosted runners. There is no local Android SDK in the autonomous
-execution environment, so local Android builds are not claimed.
+execution environment, so local Android builds are not claimed. Latest verified run: `Android CI`
+`45508407058` on `c385b48` (**success**, all three jobs). Its HTTPS instrumentation test now covers
+image upload/list/analysis, image generation, web search and the task lifecycle against the backend
+with deterministic stubs.
 
 ## Live provider checks
 

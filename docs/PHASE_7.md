@@ -34,6 +34,8 @@ the Phase 6 image pipeline, so generated assets are owner-scoped and available t
 - The response includes an authenticated relative `contentUrl`; a future UI can fetch those bytes
   with the bearer token. There is currently no Android byte-download helper or image screen, so
   display/download in the app is **not yet implemented**. The OAuth token is never placed in a URL.
+- Android CI run `45508407058` compiles this method and exercises stub generation end-to-end over a
+  temporary HTTPS tunnel.
 
 ## Tests
 

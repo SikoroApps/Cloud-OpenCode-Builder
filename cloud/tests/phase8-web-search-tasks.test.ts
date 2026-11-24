@@ -42,6 +42,10 @@ test("DuckDuckGo HTML parsing extracts safe titles, snippets and redirect target
   assert.equal(results[1].title, "Kotlin documentation & guides");
   assert.equal(decodeHtmlEntities("&lt;b&gt;x&lt;/b&gt;"), "<b>x</b>");
   assert.equal(normalizeResultUrl("javascript:alert(1)"), null);
+  assert.equal(
+    normalizeResultUrl("https://evilduckduckgo.com/l/?uddg=https%3A%2F%2Fexample.invalid%2F"),
+    "https://evilduckduckgo.com/l/?uddg=https%3A%2F%2Fexample.invalid%2F",
+  );
 });
 
 test("web search service returns parsed results and rejects unsafe or failed responses", async () => {

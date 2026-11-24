@@ -75,6 +75,13 @@ Set `OPENROUTER_API_KEY` in the backend secret store (and optionally `IMAGE_UNDE
 then upload a real image and call `/api/images/<id>/analyze`. The key must belong to a free-tier
 model; no paid requirement was introduced.
 
+## Android client
+
+`CloudApiClient` exposes `uploadImage`, `listImages`, `analyzeImage` and image metadata fields.
+Android CI run `45508407058` compiled these methods and exercised upload, list and analysis over a
+temporary HTTPS tunnel with the deterministic stub. No Compose image-picker/analysis screen exists
+yet, so end-user UI usage is not claimed.
+
 ## Security review
 
 - No image bytes are written to a user-controlled filesystem path.
