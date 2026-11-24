@@ -25,7 +25,8 @@ made.
   and secret names.
 - New tests prove readiness output does not contain marker client IDs/secrets, configured callback
   URLs, tokens or AI keys.
-- CI evidence is recorded in `docs/PROGRESS.md` after the Phase 4 commit push.
+- CI on commit `7c92adb`: `Cloud Backend CI` `45365548356` **success** (including the masked
+  readiness step) and `Android CI` `45365548349` **success** (all jobs, including HTTPS integration).
 
 ### Configuration audit result
 

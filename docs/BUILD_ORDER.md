@@ -79,7 +79,8 @@ Exit criteria:
 - Inspect Phase 3 setup requirements and validate presence/format only, never secret values.
 - Masked CLI checker and authenticated readiness endpoint added.
 - Audit result: app OAuth, encryption, AI, HTTPS backend and signing values are unset.
-- Backend tests: 33 passed locally; CI evidence recorded in `docs/PHASE_4.md`.
+- Backend tests: 33 passed locally; CI green on `45365548356` (Cloud Backend) and `45365548349`
+  (Android).
 
 ## Batch 4.2 — Live GitHub OAuth (BLOCKED)
 
