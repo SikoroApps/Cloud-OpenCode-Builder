@@ -44,6 +44,9 @@ function mockService(): GithubService {
     async listRepositories() {
       return [];
     },
+    async getRepository() {
+      throw new Error("not used");
+    },
     async repositoryExists() {
       return false;
     },

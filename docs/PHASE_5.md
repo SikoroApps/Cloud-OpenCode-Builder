@@ -10,7 +10,7 @@ physical-device claim is made unless actual evidence is recorded here.
 | --- | --- | --- |
 | 5.1 | Deployment readiness | IN PROGRESS |
 | 5.2 | GitHub OAuth | IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED |
-| 5.3 | GitHub repository connection | NOT STARTED |
+| 5.3 | GitHub repository connection | IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED |
 | 5.4 | Real GitHub Actions orchestration | NOT STARTED |
 | 5.5 | Signed APK delivery | NOT STARTED |
 | 5.6 | Real-device verification | NOT STARTED |
@@ -75,7 +75,25 @@ not been observed against a live backend, so live OAuth is **not** verified.
 
 ## Batch 5.3 — GitHub repository connection
 
-Not started.
+### Implemented
+
+- `GithubService.getRepository` reads an authenticated repository and maps its permission object.
+- `POST /api/github/repositories/connect` connects an existing accessible repository, requires
+  write permission (`admin`, `maintain` or `push`) and selects it for subsequent project work.
+- `GET /api/github/permissions` reports only booleans and the already-stored OAuth scope string:
+  repository permissions, `canWrite`, `workflowScope` and `verified`. No token is returned.
+- Existing create-public-repository and selection endpoints are preserved.
+
+### Verified
+
+- `cd cloud && npm test`: **47 passed, 0 failures** (44 prior + 3 new repository tests).
+- Tests cover successful connect/selection, permission verification, read-only rejection and a safe
+  `repository_not_found` provider code; no token material appears in responses.
+
+### Blocked
+
+No live GitHub OAuth connection exists in this environment, so no real repository was connected and
+no real permission was observed.
 
 ## Batch 5.4 — Real GitHub Actions orchestration
 

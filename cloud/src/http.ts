@@ -268,6 +268,65 @@ export async function handleApiRequest(
     }
     return;
   }
+  if (req.method === "POST" && path === "/api/github/repositories/connect") {
+    try {
+      const { token } = requireGithubAccess(auth.userId, deps);
+      const body = await readJson(req);
+      const repoFullName = String(body?.repoFullName || "");
+      if (!/^[^\s/]+\/[^\s/]+$/.test(repoFullName)) throw new ApiRequestError(400, "invalid_request");
+      const [owner, repo] = repoFullName.split("/");
+      const repository = await deps.githubService.getRepository(token, { owner, repo });
+      const permissions = repository.permissions;
+      const canWrite = Boolean(permissions?.admin || permissions?.maintain || permissions?.push);
+      if (!canWrite) throw new ApiRequestError(403, "insufficient_repository_permissions");
+      const projectId = randomUUID();
+      saveProject({
+        id: projectId,
+        userId: auth.userId,
+        repoId: repository.id,
+        repoFullName: repository.fullName,
+        repoOwner: repository.owner,
+        repoName: repository.name,
+        defaultBranch: repository.defaultBranch,
+        htmlUrl: repository.htmlUrl,
+        now: Date.now(),
+      });
+      selectProject(auth.userId, projectId, Date.now());
+      sendJson(res, 200, {
+        repository: repositoryDto(repository),
+        project: projectDto(findProjectByRepo(auth.userId, repository.fullName)),
+        permissions: permissionsDto(permissions),
+      });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
+  if (req.method === "GET" && path === "/api/github/permissions") {
+    try {
+      const { token, scopes } = requireGithubAccess(auth.userId, deps);
+      const selected = findSelectedProject(auth.userId);
+      const repoFullName = url.searchParams.get("repoFullName") || String(selected?.repoFullName || "");
+      if (!/^[^\s/]+\/[^\s/]+$/.test(repoFullName)) throw new ApiRequestError(409, "project_not_selected");
+      const [owner, repo] = repoFullName.split("/");
+      const repository = await deps.githubService.getRepository(token, { owner, repo });
+      const permissions = permissionsDto(repository.permissions);
+      const canWrite = Boolean(permissions.admin || permissions.maintain || permissions.push);
+      const workflowScope = scopes.split(/\s+/).includes("workflow");
+      sendJson(res, 200, {
+        repository: repository.fullName,
+        isPrivate: repository.isPrivate,
+        permissions,
+        canWrite,
+        workflowScope,
+        connectedScopes: scopes,
+        verified: canWrite && workflowScope,
+      });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
   if (req.method === "GET" && path === "/api/github/selection") {
     try {
       requireGithubAccess(auth.userId, deps);
@@ -830,7 +889,7 @@ function safeGithubError(error: unknown): string {
   return "internal_error";
 }
 
-function requireGithubAccess(userId: string, deps: ApiDependencies): { token: string; login: string } {
+function requireGithubAccess(userId: string, deps: ApiDependencies): { token: string; login: string; scopes: string } {
   if (!isGithubConfigured(deps.githubConfig)) throw new ApiRequestError(503, "github_not_configured");
   const connection = findGithubConnection(userId);
   if (!connection) throw new ApiRequestError(409, "github_not_connected");
@@ -839,7 +898,7 @@ function requireGithubAccess(userId: string, deps: ApiDependencies): { token: st
     iv: String(connection.iv),
     tag: String(connection.tag),
   }, deps.githubConfig.tokenEncryptionKey!);
-  return { token, login: String(connection.login) };
+  return { token, login: String(connection.login), scopes: String(connection.scopes || "") };
 }
 
 function sendGithubError(res: ServerResponse, error: unknown): void {
@@ -866,6 +925,16 @@ function repositoryDto(repository: any): Record<string, unknown> {
     isPrivate: Boolean(repository.isPrivate),
     defaultBranch: String(repository.defaultBranch),
     htmlUrl: String(repository.htmlUrl),
+    permissions: permissionsDto(repository.permissions),
+  };
+}
+
+function permissionsDto(permissions?: { admin: boolean; maintain: boolean; push: boolean; pull: boolean }): { admin: boolean; maintain: boolean; push: boolean; pull: boolean } {
+  return {
+    admin: Boolean(permissions?.admin),
+    maintain: Boolean(permissions?.maintain),
+    push: Boolean(permissions?.push),
+    pull: Boolean(permissions?.pull),
   };
 }
 

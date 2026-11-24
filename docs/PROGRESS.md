@@ -243,3 +243,11 @@ Started from the unchanged Phase 4 checkpoint `d136bda`. Detailed per-batch evid
   denied/malformed callbacks and safe `github_not_configured` behavior.
 - `cd cloud && npm test`: **44 passed, 0 failures**; `npm run typecheck`: passed.
 - No browser authorization or live OAuth App exists here; live OAuth remains unverified.
+
+### Batch 5.3 evidence
+
+- Added authenticated `getRepository`, existing-repository connect endpoint with write-permission
+  enforcement, and a masked permissions report (`canWrite`, `workflowScope`, `verified`).
+- `cd cloud && npm test`: **47 passed, 0 failures**; tests confirm read-only repositories are
+  rejected and no token appears in responses.
+- No live repository was connected; live verification remains blocked by Batch 5.2.

@@ -13,6 +13,13 @@ export interface GithubIdentity {
   login: string;
 }
 
+export interface GithubRepositoryPermissions {
+  admin: boolean;
+  maintain: boolean;
+  push: boolean;
+  pull: boolean;
+}
+
 export interface GithubRepository {
   id: number;
   fullName: string;
@@ -21,6 +28,7 @@ export interface GithubRepository {
   isPrivate: boolean;
   defaultBranch: string;
   htmlUrl: string;
+  permissions?: GithubRepositoryPermissions;
 }
 
 export interface GithubFile {
@@ -79,6 +87,7 @@ export interface GithubService {
   fetchIdentity(accessToken: string): Promise<GithubIdentity>;
   revokeToken(accessToken: string): Promise<boolean>;
   listRepositories(accessToken: string): Promise<GithubRepository[]>;
+  getRepository(accessToken: string, input: { owner: string; repo: string }): Promise<GithubRepository>;
   repositoryExists(accessToken: string, owner: string, name: string): Promise<boolean>;
   createRepository(accessToken: string, input: { name: string; description: string }): Promise<GithubRepository>;
   getFile(accessToken: string, input: { owner: string; repo: string; path: string; branch: string }): Promise<GithubFile | null>;
@@ -153,6 +162,15 @@ function mapRepository(payload: any): GithubRepository {
     throw new GithubServiceError("repository_invalid_response");
   }
   const [owner, name] = payload.full_name.split("/");
+  const rawPermissions = payload?.permissions;
+  const permissions = rawPermissions && typeof rawPermissions === "object"
+    ? {
+      admin: Boolean(rawPermissions.admin),
+      maintain: Boolean(rawPermissions.maintain),
+      push: Boolean(rawPermissions.push),
+      pull: Boolean(rawPermissions.pull),
+    }
+    : undefined;
   return {
     id: Number(payload.id),
     fullName: String(payload.full_name),
@@ -161,6 +179,7 @@ function mapRepository(payload: any): GithubRepository {
     isPrivate: Boolean(payload.private),
     defaultBranch: String(payload.default_branch || "main"),
     htmlUrl: String(payload.html_url || ""),
+    ...(permissions ? { permissions } : {}),
   };
 }
 
@@ -319,6 +338,25 @@ export function createGithubService(
       }
       if (!Array.isArray(payload)) throw new GithubServiceError("repository_list_invalid_response");
       return payload.map(mapRepository);
+    },
+
+    async getRepository(accessToken: string, input: { owner: string; repo: string }): Promise<GithubRepository> {
+      const url = `${config.apiBaseUrl}/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}`;
+      let response: Response;
+      try {
+        response = await fetchImpl(url, { headers: apiHeaders(accessToken) });
+      } catch {
+        throw new GithubServiceError("repository_lookup_transport_failed");
+      }
+      if (response.status === 404) throw new GithubServiceError("repository_not_found", 404);
+      if (!response.ok) throw new GithubServiceError("repository_lookup_failed", response.status);
+      let payload: any;
+      try {
+        payload = await response.json();
+      } catch {
+        throw new GithubServiceError("repository_invalid_response");
+      }
+      return mapRepository(payload);
     },
 
     async repositoryExists(accessToken: string, owner: string, name: string): Promise<boolean> {

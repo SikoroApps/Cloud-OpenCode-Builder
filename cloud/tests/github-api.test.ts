@@ -47,6 +47,7 @@ function mockService(options: { failCommit?: boolean; buildOutcome?: "success" |
     isPrivate: false,
     defaultBranch: "main",
     htmlUrl: "https://github.com/octocat/existing-app",
+    permissions: { admin: true, maintain: true, push: true, pull: true },
   }];
   return {
     authorizationUrl(state: string) {
@@ -63,6 +64,11 @@ function mockService(options: { failCommit?: boolean; buildOutcome?: "success" |
     },
     async listRepositories() {
       return [...repositories];
+    },
+    async getRepository(_token: string, input: { owner: string; repo: string }) {
+      const found = repositories.find((repo) => repo.owner === input.owner && repo.name === input.repo);
+      if (!found) throw new GithubServiceError("repository_not_found", 404);
+      return found;
     },
     async repositoryExists(_token: string, owner: string, name: string) {
       return repositories.some((repo) => repo.owner === owner && repo.name === name);
