@@ -251,3 +251,11 @@ Started from the unchanged Phase 4 checkpoint `d136bda`. Detailed per-batch evid
 - `cd cloud && npm test`: **47 passed, 0 failures**; tests confirm read-only repositories are
   rejected and no token appears in responses.
 - No live repository was connected; live verification remains blocked by Batch 5.2.
+
+### Batch 5.4 evidence
+
+- Added a build-verification endpoint that requires a real completed successful GitHub run, matching
+  dispatch event/ref, all jobs complete and no failed steps; dispatch-only builds are never verified.
+- `cd cloud && npm test`: **50 passed, 0 failures**; tests cover dispatch-only, real success and
+  failed-step reporting.
+- No live workflow was dispatched by the application; live orchestration remains blocked by OAuth.

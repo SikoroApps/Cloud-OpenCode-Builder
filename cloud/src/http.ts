@@ -577,6 +577,60 @@ export async function handleApiRequest(
     }
     return;
   }
+  if (req.method === "GET" && path === "/api/projects/build/verification") {
+    try {
+      const build = requireBuild(auth.userId, deps, url.searchParams.get("buildId") || "");
+      if (!build.runId) {
+        sendJson(res, 200, {
+          buildId: String(build.id),
+          verified: false,
+          reason: "dispatch_only",
+          status: String(build.status),
+          conclusion: build.conclusion ? String(build.conclusion) : null,
+          note: "Dispatch acceptance is not a successful build; a real completed run is required.",
+        });
+        return;
+      }
+      const { token, project } = requireSelectedProject(auth.userId, deps);
+      const run = await deps.githubService.getWorkflowRun(token, {
+        owner: String(project.repoOwner),
+        repo: String(project.repoName),
+        runId: Number(build.runId),
+      });
+      const jobs = await deps.githubService.listWorkflowJobs(token, {
+        owner: String(project.repoOwner),
+        repo: String(project.repoName),
+        runId: run.id,
+      });
+      const failedSteps = jobs.flatMap((job) => job.steps
+        .filter((step) => step.conclusion === "failure")
+        .map((step) => ({ job: job.name, step: step.name })));
+      const allJobsCompleted = jobs.length > 0 && jobs.every((job) => job.status === "completed");
+      const dispatchMatches = run.event === "workflow_dispatch" && run.headBranch === String(build.ref);
+      const verified = run.status === "completed" && run.conclusion === "success"
+        && allJobsCompleted && failedSteps.length === 0 && dispatchMatches;
+      sendJson(res, 200, {
+        buildId: String(build.id),
+        runId: run.id,
+        runUrl: run.htmlUrl,
+        status: run.status,
+        conclusion: run.conclusion,
+        expectedWorkflow: String(build.workflowPath),
+        expectedRef: String(build.ref),
+        actualEvent: run.event,
+        actualBranch: run.headBranch,
+        dispatchMatches,
+        allJobsCompleted,
+        jobs: jobs.map(jobDto),
+        failedSteps,
+        verified,
+        note: "Verified only from a completed successful GitHub Actions run with all jobs complete.",
+      });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
   if (req.method === "GET" && path === "/api/projects/build/artifacts") {
     try {
       const { token, project } = requireSelectedProject(auth.userId, deps);

@@ -11,7 +11,7 @@ physical-device claim is made unless actual evidence is recorded here.
 | 5.1 | Deployment readiness | IN PROGRESS |
 | 5.2 | GitHub OAuth | IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED |
 | 5.3 | GitHub repository connection | IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED |
-| 5.4 | Real GitHub Actions orchestration | NOT STARTED |
+| 5.4 | Real GitHub Actions orchestration | IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED |
 | 5.5 | Signed APK delivery | NOT STARTED |
 | 5.6 | Real-device verification | NOT STARTED |
 
@@ -97,7 +97,24 @@ no real permission was observed.
 
 ## Batch 5.4 — Real GitHub Actions orchestration
 
-Not started.
+### Implemented
+
+- `GET /api/projects/build/verification` reads the real GitHub run and jobs for a tracked build.
+- `verified: true` requires a `workflow_dispatch` run on the expected ref, `status: completed`,
+  `conclusion: success`, all jobs completed and no failed steps. Dispatch-only builds return
+  `verified: false` with reason `dispatch_only`.
+- Failed-step summaries and expected/actual event and branch are returned for diagnosis.
+
+### Verified
+
+- `cd cloud && npm test`: **50 passed, 0 failures** (47 prior + 3 new Actions tests).
+- Tests prove dispatch acceptance is never success, a real successful conclusion is verified, and a
+  failed conclusion reports its failed step without being verified.
+
+### Blocked
+
+No real GitHub Actions run was dispatched by the application here; live orchestration remains blocked
+by the missing OAuth connection and deployed backend.
 
 ## Batch 5.5 — Signed APK delivery
 
