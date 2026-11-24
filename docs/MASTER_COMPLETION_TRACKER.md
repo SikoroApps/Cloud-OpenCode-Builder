@@ -102,7 +102,7 @@ The project is **not** a finished production release.
 | Persistent owner-scoped storage | COMPLETE | `images` table; HTTP tests. |
 | Authenticated metadata/content retrieval | COMPLETE | `GET /api/images`, `/:id`, `/:id/content`. |
 | Image understanding service | IMPLEMENTED | `images.ts` + injected tests; live **BLOCKED** on `OPENROUTER_API_KEY`. |
-| Android client upload/analyze/list | IMPLEMENTED (compile/lint + HTTPS verified) | `CloudApiClient` methods; Android CI run `45508407058` compiled them and the emulator HTTPS test uploaded, listed and analyzed an image. No emulator UI screen was added or claimed. |
+| Android client upload/analyze/list | IMPLEMENTED (compile/lint + HTTPS verified) | `CloudApiClient` methods; Android CI run `45510042640` compiled them and the emulator HTTPS test uploaded, listed and analyzed an image. No emulator UI screen was added or claimed. |
 
 ## Phase 7 — Image generation
 
@@ -112,7 +112,7 @@ The project is **not** a finished production release.
 | Prompt/size validation and SSRF protection | COMPLETE | Fixed provider host, allowlisted sizes, encoded prompt; tests. |
 | Generated image validation and storage | COMPLETE | Magic-byte check, 10 MiB cap, owner-scoped persistence. |
 | Live generation and retrieval | COMPLETE | 512px JPEG, 17,277 bytes, SHA-256 `62ac8e0945cea1df95145fd773e2e7a2163e9ce1919112974af52289c20f9169`, re-read after restart. |
-| Android client | IMPLEMENTED (compile/lint + HTTPS verified) | `CloudApiClient.generateImage`; Android CI run `45508407058` exercised stub generation over HTTPS. No in-app image display screen exists yet. |
+| Android client | IMPLEMENTED (compile/lint + HTTPS verified) | `CloudApiClient.generateImage`; Android CI run `45510042640` exercised stub generation over HTTPS. No in-app image display screen exists yet. |
 
 ## Phase 8 — Real-time web search and persistent cloud tasks
 
@@ -123,7 +123,7 @@ The project is **not** a finished production release.
 | Search-grounded chat with citations | COMPLETE (controlled AI) | `webSearch: true` path; AI is stubbed in CI. |
 | Persistent cloud tasks | COMPLETE | SQLite `cloud_tasks`; live create + restart list. |
 | Owner scoping and status validation | COMPLETE | Tests cover cross-user 404 and invalid status 400. |
-| Android client | IMPLEMENTED (compile/lint + HTTPS verified) | `webSearch`, `createTask`, `listTasks`, `updateTask`, `cancelTask`; Android CI run `45508407058` exercised search and the full task lifecycle over HTTPS. |
+| Android client | IMPLEMENTED (compile/lint + HTTPS verified) | `webSearch`, `createTask`, `listTasks`, `updateTask`, `cancelTask`; Android CI run `45510042640` exercised search and the full task lifecycle over HTTPS. |
 
 ## Test and verification log (2026-11-24)
 
@@ -174,6 +174,21 @@ cover the new endpoints. All workflows succeeded again:
 
 The debug APK artifact from Android run `45508407058` was downloaded and hashed locally:
 **SHA-256 `540a29f82cb207c76ec589a0c5d03c51923f42f397ef1b6cad965d4605d2a542`** (10,052,948 bytes).
+It remains a debug artifact, not a signed release APK.
+
+### CI evidence for verified checkpoint `a0d6b21`
+
+The final source checkpoint adds the DuckDuckGo lookalike-host hardening and updated docs. All three
+workflows succeeded:
+
+| Workflow | Run ID | Result | Evidence |
+| --- | --- | --- | --- |
+| Cloud Backend CI | `45510042756` | **success** | **74/74 tests**, typecheck, masked config/deployment checks, health smoke, container build. |
+| Android CI | `45510042640` | **success** | Unit tests, backend core tests, lint, debug APK, package/secret checks, API 35 emulator smoke, and HTTPS integration covering image upload/list/analysis, generation, search and task create/update/cancel. |
+| Publish backend image | `45510042718` | **success** | Backend image build/publish workflow completed. |
+
+The debug APK artifact from Android run `45510042640` was downloaded and hashed locally:
+**SHA-256 `58c32b837915ebb8c0eff6e9ac0d33d661543a50ffd4f7d9661efdaf720437a8`** (10,052,948 bytes).
 It remains a debug artifact, not a signed release APK.
 
 ## Security audit summary

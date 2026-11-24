@@ -78,7 +78,7 @@ model; no paid requirement was introduced.
 ## Android client
 
 `CloudApiClient` exposes `uploadImage`, `listImages`, `analyzeImage` and image metadata fields.
-Android CI run `45508407058` compiled these methods and exercised upload, list and analysis over a
+Android CI run `45510042640` compiled these methods and exercised upload, list and analysis over a
 temporary HTTPS tunnel with the deterministic stub. No Compose image-picker/analysis screen exists
 yet, so end-user UI usage is not claimed.
 

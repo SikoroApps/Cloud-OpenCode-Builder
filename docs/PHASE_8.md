@@ -85,7 +85,7 @@ rejection, owner scoping, and persistence across a real backend restart using th
 - `createTask`, `listTasks`, `updateTask` and `cancelTask`;
 - `sendChat(..., webSearch = true)` to request search-grounded chat.
 
-Android CI run `45508407058` compiles these methods and exercises `webSearch` plus the full task
+Android CI run `45510042640` compiles these methods and exercises `webSearch` plus the full task
 create/list/update/cancel lifecycle over a temporary HTTPS tunnel with deterministic stubs.
 
 ## Security review
