@@ -4,6 +4,10 @@ Phase 4 starts from Phase 3 HEAD `54e2d49`. All Phase 2 and Phase 3 implementati
 This document records only verified evidence. No live GitHub, signed APK or real-device claim is
 made.
 
+For the beginner-friendly manual procedure to unblock Batch 4.2, see
+`docs/GITHUB_OAUTH_SETUP.md`. It covers OAuth App creation, the exact callback URL, secret
+placement, key generation and safe verification commands.
+
 ## Batch 4.1 — External configuration readiness (IMPLEMENTED, BLOCKED ON EXTERNAL VALUES)
 
 ### Implemented
@@ -68,8 +72,12 @@ configured in the `SikoroApps/Cloud-OpenCode-Builder` repository secrets list.
 7. Authorize the OAuth App in a browser from a signed-in GitHub user account.
 8. Connect a physical Android device with USB debugging enabled for installation/launch proof.
 
+Steps 1–7 are explained in detail, with safe verification commands, in
+`docs/GITHUB_OAUTH_SETUP.md`.
+
 ## Batch 4.2 — Live GitHub OAuth (BLOCKED)
 
+- Follow `docs/GITHUB_OAUTH_SETUP.md` for the exact manual setup and safe verification procedure.
 - Implemented endpoints already exist from Batch 3.1, but live start/callback/status/disconnect was
   not run because no OAuth App or browser authorization exists.
 - Secure token storage is covered by automated tests only; no real token was stored by the backend.
