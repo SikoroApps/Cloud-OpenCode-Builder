@@ -168,8 +168,8 @@ and launch are **not** verified. Emulator smoke tests in Android CI are not phys
 ## Phase 5 result
 
 - Automated-test verified: 60 backend tests, masked deployment/config checks and both CI workflows
-  on the final Phase 5 HEAD `2c3630a`: `Cloud Backend CI` `45448848514` **success** and
-  `Android CI` `45448848526` **success** (all three jobs, including emulator smoke and HTTPS
+  on the final Phase 5 HEAD `a161f93`: `Cloud Backend CI` `45449895058` **success** and
+  `Android CI` `45449895378` **success** (all three jobs, including emulator smoke and HTTPS
   integration).
 - Live-service verified: none. No OAuth consent, deployed backend, real repository commit,
   application-dispatched Actions run or live APK artifact was observed.

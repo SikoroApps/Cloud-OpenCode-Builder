@@ -282,11 +282,11 @@ Started from the unchanged Phase 4 checkpoint `d136bda`. Detailed per-batch evid
 
 ### Final Phase 5 CI evidence
 
-On final Phase 5 HEAD `2c3630a` (commit following the implementation commit `417cc2b`):
+On final Phase 5 HEAD `a161f93` (commit following the implementation commit `417cc2b`):
 
-- `Cloud Backend CI` `45448848514`: **success** (60 backend tests, typecheck, masked config and
+- `Cloud Backend CI` `45449895058`: **success** (60 backend tests, typecheck, masked config and
   deployment checks, health smoke and container build).
-- `Android CI` `45448848526`: **success** (unit tests, backend core tests, lint, debug APK with
+- `Android CI` `45449895378`: **success** (unit tests, backend core tests, lint, debug APK with
   package-name and secret-marker checks, API 35 emulator smoke test and HTTPS integration test).
 
 These runs verify code and mocked/simulated integration only. They are not live OAuth, real
