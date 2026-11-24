@@ -42,24 +42,51 @@ Status: **COMPLETE** with CI evidence.
 
 ## Phase 2 — Cloud AI Engine
 
-Status: **IN PROGRESS** — local implementation and verification complete; cloud deployment and final CI evidence pending.
+Status: **IN PROGRESS** — local implementation complete; final HTTPS integration CI, permanent
+deployment and provider credentials remain.
 
-Implemented:
+### Implemented
 
-- Node.js cloud backend (`cloud/`): health, auth, chat, model endpoints; scrypt password hashing, hashed bearer sessions, SQLite chat persistence, AI fallback chain and providers.
-- Android cloud client: HTTPS enforcement, allowlist, register/login/chat/history/logout client, encrypted token store, secure URL tests.
+- Node.js cloud backend (`cloud/`): health, auth, chat, model and history endpoints; scrypt password
+  hashing, hashed bearer sessions, SQLite chat persistence, AI fallback chain, OpenCode/OpenRouter
+  adapters, Dockerfile and env-only configuration.
+- Android cloud client: HTTPS enforcement, optional allowlist, register/login/logout/chat/history/
+  health methods, Android Keystore token encryption, secure URL tests and an instrumented HTTPS
+  integration test.
+- CI: backend tests + health smoke + container build; Android unit tests, backend core tests, lint,
+  emulator smoke test, APK assembly, secret scan and a temporary HTTPS tunnel integration job.
 
-Verified locally:
+### Verified evidence
 
-- Cloud backend tests: 7 passed, 0 failures.
-- Backend live smoke: health, auth, chat history and chat fallback-exhausted response.
-- Real OpenCode provider: `opencode/big-pickle` succeeded; stateless generate route returned real `429 rate_limit`.
+- Cloud backend tests: **8 passed, 0 failures** locally and in CI.
+- API integration test: auth and chat history survive a backend restart (AI stubbed, simulated).
+- Backend live smoke: health, auth, history and fallback-exhausted chat response.
+- Real OpenCode provider probes:
+  - `opencode/big-pickle`, `opencode/deepseek-v4.1-flash-free` and `opencode/flint-40b-free` all
+    returned assistant text `MODELTEST`.
+  - OpenCode stateless generate route returned a real `429 rate_limit` error.
+- Direct OpenRouter probes for both required free models returned real upstream `429`
+  temporary-rate-limit responses; no successful live OpenRouter response was observed.
+- Fallback tests are controlled/simulated and assert exact order, eligible errors, automatic
+  switching, non-eligible stop and exhaustion. They are not live availability claims.
 
-Latest CI evidence (2026-11-24):
+### CI evidence (2026-11-24)
 
-- `Cloud Backend CI` run `45340096468` on Phase 2 commit: **success** (backend tests + health smoke green).
-- `Android CI` run `45340096492` on Phase 2 commit: **failure** — new Android client code did not compile; compile errors fixed in follow-up commit, rerun required.
+- `Cloud Backend CI` `45340096468` on `94470f6`: **success**.
+- `Android CI` `45340096492` on `94470f6`: **failure** (Phase 2 compile errors).
+- `Cloud Backend CI` `45344526350` on `48d98d8`: **success**.
+- `Android CI` `45344526434` on `48d98d8`: **failure** (remaining compile errors).
+- `Cloud Backend CI` `45345330402` on `ba749e8`: **success** (8 tests, health smoke, container build).
+- `Android CI` `45345330348` on `ba749e8`: **success** (unit tests, backend tests, lint, emulator
+  smoke, APK and secret scan).
+- `Cloud Backend CI` `45345888090` on `d5bb65d`: **success**.
+- `Android CI` `45345888322` on `d5bb65d`: final HTTPS integration verification in progress.
 
-Remaining blockers:
+### Remaining blockers
 
-- OpenCode free quota reached; OpenRouter credentials not configured; cloud deployment pending; final CI evidence pending.
+- Permanent cloud hosting, HTTPS domain and TLS configuration were not provided.
+- `OPENROUTER_API_KEY` is not configured as a backend secret; OpenRouter free models were rate-limited
+  upstream during direct probes.
+- OpenCode free quotas can be exhausted; no availability is assumed without a fresh probe.
+- No separate Supabase project/credentials exist; the Messenger Pro project must not be reused.
+- Phase 2 remains incomplete until the final HTTPS integration CI run is green.

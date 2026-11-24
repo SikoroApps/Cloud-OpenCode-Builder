@@ -262,7 +262,7 @@ jobs:
           arch: x86_64
           disable-linux-hw-accel: false
           working-directory: android
-          script: ./gradlew connectedDebugAndroidTest --tests 'com.sikorokoro44.cloudopencode.HttpsBackendIntegrationTest' --no-daemon
+          script: ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.sikorokoro44.cloudopencode.HttpsBackendIntegrationTest --no-daemon
       - name: Upload HTTPS integration test results
         if: always()
         uses: actions/upload-artifact@v4

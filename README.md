@@ -62,7 +62,13 @@ Cloud AI Engine phase, and `docs/PROGRESS.md` for detailed evidence.
 
 ## Phase 2 status
 
-The deployable cloud backend and AI fallback engine are implemented under `cloud/` and verified
-locally. Real AI provider responses were observed during Phase 2 (`opencode/big-pickle` success and
-OpenCode free-provider `429 rate_limit`). Cloud deployment, OpenRouter credentials and final CI
-evidence are still pending.
+The deployable cloud backend, five-model fallback engine, SQLite chat persistence and HTTPS-only
+Android client are implemented under `cloud/` and `android/`. Backend tests and container build are
+green (`Cloud Backend CI` `45345888090`); Android unit/lint/emulator/APK checks were green on
+`ba749e8` (`Android CI` `45345330348`). Real provider probes returned `MODELTEST` from
+`opencode/big-pickle`, `opencode/deepseek-v4.1-flash-free` and `opencode/flint-40b-free`; OpenRouter
+free models returned real upstream `429` rate-limit responses.
+
+Final HTTPS integration CI is being verified in `Android CI` `45345888322`. Permanent hosting, a TLS
+domain and backend `OPENROUTER_API_KEY` secret are external dependencies, so Phase 2 is not yet
+complete. See `docs/PHASE_2.md` and `docs/PROGRESS.md` for full evidence and blockers.
