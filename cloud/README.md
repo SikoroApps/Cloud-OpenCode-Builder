@@ -39,9 +39,17 @@ Never put keys in source, Dockerfiles, git, logs or client builds. Supply them a
 - `GET /api/models`
 - `POST /api/auth/register`, `/api/auth/login`, `/api/auth/logout`, `GET /api/auth/me`
 - `GET /api/chat/history?sessionKey=...`
-- `POST /api/chat` with `{ "sessionKey": "...", "content": "..." }`
+- `POST /api/chat` with `{ "sessionKey": "...", "content": "...", "webSearch": true }` (the
+  `webSearch` flag is optional). Chat responses report the actual answering model in `ai.model`,
+  attempted models in `ai.attempts`, and search sources in `webSearch` when requested.
+- `POST /api/images`, `GET /api/images`, `GET /api/images/:id`, `GET /api/images/:id/content`
+- `POST /api/images/:id/analyze`, `POST /api/images/generate`
+- `POST /api/search` with `{ "query": "...", "limit": 1..10 }`
+- `POST /api/tasks`, `GET /api/tasks`, `GET|PATCH|DELETE /api/tasks/:id`
 
-Chat responses report the actual answering model in `ai.model` and attempted models in `ai.attempts`.
+All endpoints below `/api` require the bearer token returned by register/login. Image and task
+records are scoped to the authenticated user. Image bytes are served only through the authenticated
+content endpoint.
 
 ## Container deployment
 

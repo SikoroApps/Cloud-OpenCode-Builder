@@ -327,7 +327,7 @@ fallback order or Phases 1–5.
   traversal, stored in SQLite and scoped to the authenticated user/project.
 - Vision analysis uses a free OpenRouter vision model behind `OPENROUTER_API_KEY`; no key is present
   here, so live understanding is **BLOCKED** and only the injected/stub path is verified.
-- `cd cloud && npm test`: 5 Phase 6 tests pass as part of the 73-test suite.
+- `cd cloud && npm test`: 6 Phase 6 tests pass as part of the 74-test suite.
 
 ### Phase 7 — Image generation
 
@@ -351,7 +351,20 @@ fallback order or Phases 1–5.
 
 ### Backend test total
 
-`cd cloud && npm test`: **73 passed, 0 failed**. `npm run typecheck`, `npm run check:config` and
-`npm run check:deployment` pass. Android compilation/lint/emulator verification is delegated to
-Android CI because this environment has no local Android SDK. Live production gates (deployed HTTPS,
-GitHub OAuth consent, signing secrets, signed APK, physical device) remain outstanding.
+`cd cloud && npm test`: **74 passed, 0 failed**. `npm run typecheck`, `npm run check:config` and
+`npm run check:deployment` pass. Local Android compilation was unavailable because this environment
+has no JDK/Android SDK, so the Android verification used GitHub-hosted CI.
+
+### Phases 6–8 CI evidence on `cc662d0`
+
+- `Cloud Backend CI` `45503752952`: **success** (73 tests, typecheck, masked checks, health smoke,
+  container build).
+- `Android CI` `45503752923`: **success** (unit tests, backend core tests, lint, debug APK,
+  package/secret checks, API 35 emulator smoke and HTTPS backend integration).
+- `Publish backend image` `45503752574`: **success**.
+- Downloaded debug APK artifact `app-debug.apk` from the Android run: 10,052,948 bytes, SHA-256
+  `28f0929e3f5b78e543324c00f82b6b3ff427cce61a50c15d0a4ba8a08149b068`. This is still a debug
+  artifact, not a signed release.
+
+Live production gates (deployed HTTPS, GitHub OAuth consent, signing secrets, signed APK, physical
+device) remain outstanding.

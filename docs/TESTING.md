@@ -9,7 +9,7 @@ Run from `cloud/`:
 - `npm run check:config` — masked readiness check (no secret values printed).
 - `npm run check:deployment` — masked deployment preflight (no secret values printed).
 
-Current result (2026-11-24): **73 passed, 0 failed**. New advanced-feature coverage:
+Current result (2026-11-24): **74 passed, 0 failed**. New advanced-feature coverage:
 
 - `tests/phase6-images.test.ts` — upload, MIME sniffing, path sanitization, owner scoping, analysis.
 - `tests/phase7-image-generation.test.ts` — fixed URL, prompt/size, provider failures, validation.
@@ -34,8 +34,8 @@ execution environment, so local Android builds are not claimed.
 
 ## Live provider checks
 
-- Pollinations image generation was called live on 2026-11-24 and the stored APK-image SHA-256 was
-  verified after a backend restart.
+- Pollinations image generation was called live on 2026-11-24 and the stored generated-image SHA-256
+  was verified after a backend restart.
 - DuckDuckGo HTML search was called live on 2026-11-24 and real Android developer results were
   parsed.
 - OpenRouter image understanding requires `OPENROUTER_API_KEY`; it remains live-blocked here.

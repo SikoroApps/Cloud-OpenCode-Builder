@@ -143,6 +143,30 @@ test("image understanding uses the configured vision service and returns no cred
   }
 });
 
+test("invalid JSON and non-numeric list limits fail safely", async () => {
+  const server = await startServer(baseDependencies());
+  try {
+    const malformed = await fetch(`${server.baseUrl}/api/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{",
+    });
+    assert.equal(malformed.status, 400);
+    assert.deepEqual(await malformed.json(), { error: "invalid_json" });
+
+    const auth = await registerUser(server.baseUrl);
+    const images = await fetch(`${server.baseUrl}/api/images?limit=not-a-number`, { headers: auth });
+    assert.equal(images.status, 200);
+    assert.deepEqual(await images.json(), { images: [] });
+
+    const tasks = await fetch(`${server.baseUrl}/api/tasks?limit=not-a-number`, { headers: auth });
+    assert.equal(tasks.status, 200);
+    assert.deepEqual(await tasks.json(), { tasks: [] });
+  } finally {
+    await server.close();
+  }
+});
+
 test("image generation stores the generated image under the requesting user", async () => {
   const server = await startServer(baseDependencies({
     imageGenerationService: {

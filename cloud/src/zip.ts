@@ -39,7 +39,8 @@ export function findZipFileByExtension(bytes: Uint8Array, extension: string): Zi
         content = method === 0
           ? compressed
           : method === 8
-            ? inflateRawSync(compressed)
+            // Bound decompression so a crafted artifact cannot exhaust memory.
+            ? inflateRawSync(compressed, { maxOutputLength: MAX_APK_BYTES })
             : Buffer.alloc(0);
       } catch {
         return null;

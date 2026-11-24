@@ -27,7 +27,7 @@ Status vocabulary:
 | Phase 7 — Image generation | **COMPLETE** | 3 module tests + HTTP generation test; live Pollinations JPEG generated, stored, re-read after restart and SHA-256 matched. |
 | Phase 8 — Web search and persistent tasks | **COMPLETE** | 5 tests; live DuckDuckGo search returned real results; tasks persisted across a real backend restart. |
 
-Backend automated test suite after Phases 6–8: **73 passed, 0 failed** (`cd cloud && npm test`).
+Backend automated test suite after Phases 6–8: **74 passed, 0 failed** (`cd cloud && npm test`).
 This includes all earlier phase tests; no test was removed or weakened.
 
 Rough verified-requirement completion: **7 of 8 phase areas have complete or implemented automated
@@ -102,7 +102,7 @@ The project is **not** a finished production release.
 | Persistent owner-scoped storage | COMPLETE | `images` table; HTTP tests. |
 | Authenticated metadata/content retrieval | COMPLETE | `GET /api/images`, `/:id`, `/:id/content`. |
 | Image understanding service | IMPLEMENTED | `images.ts` + injected tests; live **BLOCKED** on `OPENROUTER_API_KEY`. |
-| Android client upload/analyze/list | IMPLEMENTED | `CloudApiClient` methods; Android CI verifies compilation. |
+| Android client upload/analyze/list | IMPLEMENTED (compile/lint verified) | `CloudApiClient` methods; Android CI run `45503752923` passed compilation, unit tests and lint. No emulator UI flow was added or claimed. |
 
 ## Phase 7 — Image generation
 
@@ -112,7 +112,7 @@ The project is **not** a finished production release.
 | Prompt/size validation and SSRF protection | COMPLETE | Fixed provider host, allowlisted sizes, encoded prompt; tests. |
 | Generated image validation and storage | COMPLETE | Magic-byte check, 10 MiB cap, owner-scoped persistence. |
 | Live generation and retrieval | COMPLETE | 512px JPEG, 17,277 bytes, SHA-256 `62ac8e0945cea1df95145fd773e2e7a2163e9ce1919112974af52289c20f9169`, re-read after restart. |
-| Android client | IMPLEMENTED | `CloudApiClient.generateImage`; Android CI verifies compilation. |
+| Android client | IMPLEMENTED (compile/lint verified) | `CloudApiClient.generateImage`; Android CI run `45503752923` passed compilation, unit tests and lint. |
 
 ## Phase 8 — Real-time web search and persistent cloud tasks
 
@@ -123,23 +123,43 @@ The project is **not** a finished production release.
 | Search-grounded chat with citations | COMPLETE (controlled AI) | `webSearch: true` path; AI is stubbed in CI. |
 | Persistent cloud tasks | COMPLETE | SQLite `cloud_tasks`; live create + restart list. |
 | Owner scoping and status validation | COMPLETE | Tests cover cross-user 404 and invalid status 400. |
-| Android client | IMPLEMENTED | `webSearch`, `createTask`, `listTasks`, `updateTask`, `cancelTask`. |
+| Android client | IMPLEMENTED (compile/lint verified) | `webSearch`, `createTask`, `listTasks`, `updateTask`, `cancelTask`; Android CI run `45503752923` passed compilation, unit tests and lint. |
 
 ## Test and verification log (2026-11-24)
 
 | Command / check | Result |
 | --- | --- |
-| `cd cloud && npm test` | **73 passed, 0 failed** |
+| `cd cloud && npm test` | **74 passed, 0 failed** |
 | `cd cloud && npm run typecheck` | passed |
 | `cd cloud && npm run check:config` | passed (masked output) |
 | `cd cloud && npm run check:deployment` | passed (blockers reported, no values) |
-| New Phase 6 tests | 5 passed |
+| New Phase 6 tests | 6 passed |
 | New Phase 7 tests | 3 passed |
 | New Phase 8 tests | 5 passed |
 | Live Pollinations generation | HTTP 201/200; JPEG; SHA-256 matched after restart |
 | Live DuckDuckGo search | HTTP 200; real results parsed |
 | Live task persistence | task survived backend restart |
 | Android build/lint | delegated to Android CI (no local Android SDK in this environment) |
+
+### CI evidence for verified checkpoint `cc662d0`
+
+The Phases 6–8 checkpoint was pushed as commit `cc662d0` and all three workflows completed
+successfully:
+
+| Workflow | Run ID | Result | Evidence |
+| --- | --- | --- | --- |
+| Cloud Backend CI | `45503752952` | **success** | 73 tests, typecheck, masked config/deployment checks, health smoke, container build. |
+| Android CI | `45503752923` | **success** | Unit tests, backend core tests, lint, debug APK assembly, package-name and secret-marker checks, API 35 emulator smoke test, and HTTPS backend integration test. |
+| Publish backend image | `45503752574` | **success** | Backend image build/publish workflow completed. |
+
+The debug APK artifact `cloud-opencode-debug` from Android CI run `45503752923` was downloaded and
+hashed locally: **SHA-256 `28f0929e3f5b78e543324c00f82b6b3ff427cce61a50c15d0a4ba8a08149b068`**
+(10,052,948 bytes). This is a **debug build artifact**, not a signed release APK. The CI steps that
+verified its package name (`com.sikorokoro44.cloudopencode.debug`) and secret-marker scan passed.
+
+These runs verify compilation, lint, automated tests, emulator launch and a temporary HTTPS
+integration. They do not replace live OAuth consent, a deployed permanent backend, a signed release
+APK or physical-device verification.
 
 ## Security audit summary
 

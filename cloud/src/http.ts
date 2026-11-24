@@ -115,6 +115,19 @@ export async function handleApiRequest(
   res: ServerResponse,
   deps: ApiDependencies = createApiDependencies(),
 ): Promise<void> {
+  try {
+    await handleApiRequestInner(req, res, deps);
+  } catch (error) {
+    if (res.headersSent) throw error;
+    sendFeatureError(res, error);
+  }
+}
+
+async function handleApiRequestInner(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: ApiDependencies,
+): Promise<void> {
   const url = new URL(req.url || "/", "http://localhost");
   const path = url.pathname;
   if (req.method === "GET" && path === "/health") {
@@ -302,7 +315,7 @@ export async function handleApiRequest(
   const imageContentMatch = path.match(/^\/api\/images\/([^/]+)\/content$/);
   if (req.method === "GET" && imageContentMatch) {
     try {
-      const image = findImage(auth.userId, decodeURIComponent(imageContentMatch[1]));
+      const image = findImage(auth.userId, decodePathSegment(imageContentMatch[1]));
       if (!image) throw new ApiRequestError(404, "image_not_found");
       const bytes = Buffer.from(String(image.dataBase64), "base64");
       res.writeHead(200, {
@@ -321,7 +334,7 @@ export async function handleApiRequest(
   const imageAnalyzeMatch = path.match(/^\/api\/images\/([^/]+)\/analyze$/);
   if (req.method === "POST" && imageAnalyzeMatch) {
     try {
-      const image = findImage(auth.userId, decodeURIComponent(imageAnalyzeMatch[1]));
+      const image = findImage(auth.userId, decodePathSegment(imageAnalyzeMatch[1]));
       if (!image) throw new ApiRequestError(404, "image_not_found");
       const body = await readJson(req);
       const prompt = String(body?.prompt || "Describe this image and note anything relevant for an Android app project.").trim();
@@ -345,7 +358,7 @@ export async function handleApiRequest(
   }
   const imageMatch = path.match(/^\/api\/images\/([^/]+)$/);
   if (req.method === "GET" && imageMatch) {
-    const image = findImage(auth.userId, decodeURIComponent(imageMatch[1]));
+    const image = findImage(auth.userId, decodePathSegment(imageMatch[1]));
     if (!image) {
       sendJson(res, 404, { error: "image_not_found" });
       return;
@@ -396,7 +409,7 @@ export async function handleApiRequest(
   const taskMatch = path.match(/^\/api\/tasks\/([^/]+)$/);
   if (taskMatch && (req.method === "GET" || req.method === "PATCH" || req.method === "DELETE")) {
     try {
-      const taskId = decodeURIComponent(taskMatch[1]);
+      const taskId = decodePathSegment(taskMatch[1]);
       const task = findCloudTask(auth.userId, taskId);
       if (!task) throw new ApiRequestError(404, "task_not_found");
       if (req.method === "GET") {
@@ -1258,6 +1271,14 @@ function sendFeatureError(res: ServerResponse, error: unknown): void {
     return;
   }
   throw error;
+}
+
+function decodePathSegment(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    throw new ApiRequestError(400, "invalid_request");
+  }
 }
 
 function optionalProjectId(userId: string, raw: unknown): string | null {

@@ -580,8 +580,13 @@ export function findImage(userId: string, imageId: string): any | undefined {
     .get(imageId, userId) as any;
 }
 
+function normalizeListLimit(limit: number, fallback = 50): number {
+  if (!Number.isFinite(limit)) return fallback;
+  return Math.max(1, Math.min(Math.trunc(limit), 100));
+}
+
 export function listImages(userId: string, projectId: string | null, limit = 50): any[] {
-  const normalizedLimit = Math.max(1, Math.min(limit, 100));
+  const normalizedLimit = normalizeListLimit(limit);
   if (projectId) {
     return getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
       .prepare(
@@ -625,7 +630,7 @@ export function findCloudTask(userId: string, taskId: string): any | undefined {
 }
 
 export function listCloudTasks(userId: string, projectId: string | null, limit = 50): any[] {
-  const normalizedLimit = Math.max(1, Math.min(limit, 100));
+  const normalizedLimit = normalizeListLimit(limit);
   if (projectId) {
     return getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
       .prepare(

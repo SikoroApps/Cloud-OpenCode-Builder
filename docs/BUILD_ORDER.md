@@ -158,7 +158,7 @@ Maps the first advanced backlog item from the original README/BUILD_ORDER to Pha
 - Owner-scoped image upload with magic-byte validation, 5 MiB cap and path-traversal protection.
 - Persistent SQLite image storage and authenticated metadata/content endpoints.
 - Image-understanding endpoint backed by a free OpenRouter vision model.
-- Evidence: `docs/PHASE_6.md`; 5 new tests. Live vision remains blocked on `OPENROUTER_API_KEY`.
+- Evidence: `docs/PHASE_6.md`; 6 new tests. Live vision remains blocked on `OPENROUTER_API_KEY`.
 
 ## Phase 7 — Image generation (COMPLETE, LIVE VERIFIED)
 

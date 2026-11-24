@@ -135,8 +135,11 @@ checkpoint:
   search-grounded chat with citations, and SQLite-backed tasks that survive backend restarts.
   **Live verified**. See `docs/PHASE_8.md`.
 
-Backend suite after these phases: **73 tests passed, 0 failed**. The Android client exposes upload,
-analysis, generation, search and task methods; Android CI remains responsible for compilation, lint
-and emulator verification. The authoritative status and remaining external blockers are in
-`docs/MASTER_COMPLETION_TRACKER.md`. Production release gates (deployed HTTPS backend, real GitHub
-OAuth consent, signing secrets, signed APK and physical device) are still outstanding.
+Backend suite after these phases: **74 tests passed, 0 failed**. On checkpoint `cc662d0`,
+`Cloud Backend CI` `45503752952`, `Android CI` `45503752923` and `Publish backend image`
+`45503752574` all succeeded; Android CI compiled the new client methods and passed unit tests, lint,
+debug APK, emulator smoke and HTTPS integration. The downloaded debug APK SHA-256 is
+`28f0929e3f5b78e543324c00f82b6b3ff427cce61a50c15d0a4ba8a08149b068` (debug only). The authoritative
+status and remaining external blockers are in `docs/MASTER_COMPLETION_TRACKER.md`. Production
+release gates (deployed HTTPS backend, real GitHub OAuth consent, signing secrets, signed APK and
+physical device) are still outstanding.

@@ -31,8 +31,9 @@ the Phase 6 image pipeline, so generated assets are owner-scoped and available t
 ### Android client
 
 - `CloudApiClient.generateImage(token, prompt, size, projectId?)` returns `CloudImage` metadata.
-- Generated images can be displayed/downloaded through the authenticated
-  `contentUrl` returned by the backend; the OAuth token is not placed in a URL.
+- The response includes an authenticated relative `contentUrl`; a future UI can fetch those bytes
+  with the bearer token. There is currently no Android byte-download helper or image screen, so
+  display/download in the app is **not yet implemented**. The OAuth token is never placed in a URL.
 
 ## Tests
 

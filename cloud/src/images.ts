@@ -218,7 +218,12 @@ export function createImageGenerationService(options: {
       const declared = ALLOWED_IMAGE_MIME_TYPES.includes(contentType as AllowedImageMimeType)
         ? contentType as AllowedImageMimeType
         : null;
-      const buffer = Buffer.from(await response.arrayBuffer());
+      let buffer: Buffer;
+      try {
+        buffer = Buffer.from(await response.arrayBuffer());
+      } catch {
+        throw new ImageServiceError("image_generation_failed", 502);
+      }
       if (!buffer.length) throw new ImageServiceError("image_generation_failed", 502);
       if (buffer.length > MAX_GENERATED_IMAGE_BYTES) throw new ImageServiceError("image_generation_failed", 502);
       const detected = detectImageMimeType(buffer);

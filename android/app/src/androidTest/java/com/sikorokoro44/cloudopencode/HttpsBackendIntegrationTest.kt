@@ -41,6 +41,33 @@ class HttpsBackendIntegrationTest {
         assertEquals(2, history.size)
         assertEquals("persist over https", history[0].content)
         assertEquals("STUB:persist over https", history[1].content)
+
+        // Phase 6: upload, list, fetch metadata and understand an image over HTTPS.
+        val pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        val uploaded = client.uploadImage(token, "integration.png", "image/png", pngBase64).getOrThrow()
+        assertTrue(uploaded.id.isNotBlank())
+        assertEquals("image/png", uploaded.mimeType)
+        assertEquals("upload", uploaded.source)
+        assertTrue(client.listImages(token).getOrThrow().any { it.id == uploaded.id })
+        val analysis = client.analyzeImage(token, uploaded.id, "Describe this image").getOrThrow()
+        assertEquals(uploaded.id, analysis.imageId)
+        assertTrue(analysis.content.startsWith("STUB_IMAGE:"))
+
+        // Phase 7: free-provider stub generation, stored through the same owner-scoped pipeline.
+        val generated = client.generateImage(token, "a blue cloud icon", 512).getOrThrow()
+        assertEquals("generated", generated.source)
+        assertEquals("image/png", generated.mimeType)
+
+        // Phase 8: deterministic search stub and persistent task lifecycle.
+        val search = client.webSearch(token, "android compose", 2).getOrThrow()
+        assertEquals("stub/local-test", search.provider)
+        assertTrue(search.results.isNotEmpty())
+        val task = client.createTask(token, "integration task").getOrThrow()
+        assertEquals("queued", task.status)
+        assertTrue(client.listTasks(token).getOrThrow().any { it.id == task.id })
+        assertEquals("running", client.updateTask(token, task.id, "running").getOrThrow().status)
+        assertEquals("cancelled", client.cancelTask(token, task.id).getOrThrow().status)
+
         assertTrue("logout failed", client.logout(token).isSuccess)
     }
 }

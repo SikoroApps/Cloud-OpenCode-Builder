@@ -85,7 +85,12 @@ export function createWebSearchService(options: {
         },
       }).catch(() => null);
       if (!response || !response.ok) throw new WebSearchError("web_search_failed", 502);
-      const html = await response.text();
+      let html: string;
+      try {
+        html = await response.text();
+      } catch {
+        throw new WebSearchError("web_search_failed", 502);
+      }
       return { query, provider: "duckduckgo_html", results: parseDuckDuckGoHtml(html, limit) };
     },
   };

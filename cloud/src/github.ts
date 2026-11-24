@@ -2,6 +2,8 @@ import { Buffer } from "node:buffer";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import type { GithubConfig } from "./config.ts";
 
+const MAX_WORKFLOW_ARTIFACT_BYTES = 100 * 1024 * 1024;
+
 export interface GithubTokenExchange {
   accessToken: string;
   scope: string;
@@ -600,6 +602,9 @@ export function createGithubService(
       try {
         bytes = new Uint8Array(await finalResponse.arrayBuffer());
       } catch {
+        throw new GithubServiceError("workflow_artifact_download_invalid");
+      }
+      if (!bytes.length || bytes.length > MAX_WORKFLOW_ARTIFACT_BYTES) {
         throw new GithubServiceError("workflow_artifact_download_invalid");
       }
       const suggestedFilename = String(finalResponse.headers.get("content-disposition") || `artifact-${input.artifactId}.zip`)
