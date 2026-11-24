@@ -116,7 +116,34 @@ Exit criteria:
   device gates pass. Independent hardening and automated-test gates are complete: 38 backend tests
   and CI green on `45408308794` (Cloud Backend) and `45408308675` (Android).
 
-## Batch 5 — Advanced features (planned)
+## Batch 5.1 — Deployment readiness (IN PROGRESS)
+
+- Container deployment contract, persistent SQLite volume and HTTPS health checks.
+- Masked deployment preflight checker and CI step.
+- See `docs/PHASE_5.md` and `docs/DEPLOYMENT.md`.
+
+## Batch 5.2 — GitHub OAuth (NOT STARTED)
+
+- Real browser authorization, state/callback validation and encrypted token storage.
+- Live OAuth cannot be claimed without a real OAuth App and browser consent.
+
+## Batch 5.3 — GitHub repository connection (NOT STARTED)
+
+- Authenticated repository listing, connect/create and permission verification.
+
+## Batch 5.4 — Real GitHub Actions orchestration (NOT STARTED)
+
+- Application-dispatched runs, real run IDs, job conclusions and failed-step logs.
+
+## Batch 5.5 — Signed APK delivery (NOT STARTED)
+
+- GitHub-hosted signed release builds, APK signature/checksum evidence and browser download links.
+
+## Batch 5.6 — Real-device verification (NOT STARTED)
+
+- Installation and launch evidence from a physical Android device when one is available.
+
+## Advanced features (planned, after Phase 5)
 
 - Image uploads/understanding and image generation.
 - Real-time web search.

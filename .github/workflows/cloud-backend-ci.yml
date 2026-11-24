@@ -30,6 +30,9 @@ jobs:
       - name: Validate configuration readiness (masked)
         working-directory: cloud
         run: npm run check:config
+      - name: Validate deployment readiness (masked)
+        working-directory: cloud
+        run: npm run check:deployment
       - name: Start backend and smoke test health endpoint
         working-directory: cloud
         run: |

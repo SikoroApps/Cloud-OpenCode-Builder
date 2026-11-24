@@ -219,3 +219,20 @@ EXTERNAL SETUP**; started from Phase 3 HEAD `54e2d49` without rewriting complete
 - No browser authorization can be performed by this harness, so live OAuth cannot be completed.
 - No physical Android device is available, so real-device installation/launch cannot be verified.
 - No live-service or real-device claim is made; live portions of Batches 4.2–4.6 remain unverified.
+
+## Phase 5 — Live Integration and First Real APK
+
+Started from the unchanged Phase 4 checkpoint `d136bda`. Detailed per-batch evidence is in
+`docs/PHASE_5.md`.
+
+### Batch 5.1 evidence
+
+- Supported deployment target is the Node.js 22 container in `cloud/Dockerfile`, with a persistent
+  `/data` SQLite volume, `GET /health`, and TLS terminated by the host or reverse proxy.
+- Added masked deployment preflight (`cloud/src/deployment.ts`,
+  `cloud/scripts/check-deployment.mjs`, `npm run check:deployment`) and two controlled tests.
+- Added `docs/DEPLOYMENT.md`, Phase 5 docs and a masked Cloud Backend CI step.
+- `cd cloud && npm test`: **40 passed, 0 failures**; `npm run typecheck`, `npm run check:config`
+  and `npm run check:deployment` all passed.
+- Current environment has no live deployment, HTTPS domain, OAuth values, AI key or health URL;
+  the checker reports these as blockers without printing values.

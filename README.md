@@ -98,3 +98,12 @@ backend tests pass**. Live OAuth, real repository commits, real Actions conclusi
 signature verification and real-device installation remain blocked until the OAuth App, deployed
 HTTPS backend, AI key, signing secrets and browser authorization described in `docs/PHASE_4.md` and
 `docs/GITHUB_OAUTH_SETUP.md` are provided. No live-service or production-release claim is made.
+
+## Phase 5 status
+
+Phase 5 started from the unchanged Phase 4 checkpoint `d136bda`. It proceeds in dependency order
+from deployment readiness (5.1) through GitHub OAuth, repository connection, real Actions
+orchestration, signed APK delivery and physical-device verification (5.6). The container deployment
+contract and masked preflight checks are in `docs/DEPLOYMENT.md`; per-batch evidence is in
+`docs/PHASE_5.md`. Work that requires external credentials, browser consent, signing secrets or a
+physical device is implemented around the dependency and recorded as blocked, never fabricated.
