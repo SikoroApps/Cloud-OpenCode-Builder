@@ -259,3 +259,13 @@ Started from the unchanged Phase 4 checkpoint `d136bda`. Detailed per-batch evid
 - `cd cloud && npm test`: **50 passed, 0 failures**; tests cover dispatch-only, real success and
   failed-step reporting.
 - No live workflow was dispatched by the application; live orchestration remains blocked by OAuth.
+
+### Batch 5.5 evidence
+
+- Generated workflows now emit full `apksigner`, `aapt` and `sha256sum` evidence; added an APK
+  verification endpoint and parser that require a real successful run, matching checksum, signature
+  success markers and expected package name.
+- `cd cloud && npm test`: **57 passed, 0 failures**; tests cover valid evidence, checksum mismatch
+  and missing evidence artifact.
+- No real signed APK, download link or device-installable artifact exists here; signing secrets and
+  a live release run remain external blockers.

@@ -40,6 +40,7 @@ import {
   type AiFilePlanner,
 } from "./files.ts";
 import { findZipFileByExtension } from "./zip.ts";
+import { verifyApkEvidence } from "./apk-evidence.ts";
 
 export interface AuthUser { id: string; email: string }
 
@@ -692,6 +693,54 @@ export async function handleApiRequest(
     }
     return;
   }
+  if (req.method === "GET" && path === "/api/projects/build/apk-verification") {
+    try {
+      const { token, project } = requireSelectedProject(auth.userId, deps);
+      const build = requireSuccessfulBuild(auth.userId, deps, url.searchParams.get("buildId") || "");
+      const artifactId = Number(url.searchParams.get("artifactId") || "");
+      if (!Number.isFinite(artifactId) || artifactId <= 0) throw new ApiRequestError(400, "invalid_request");
+      const artifacts = await deps.githubService.listWorkflowArtifacts(token, {
+        owner: String(project.repoOwner),
+        repo: String(project.repoName),
+        runId: Number(build.runId),
+      });
+      const apkArtifact = artifacts.find((artifact) => artifact.id === artifactId);
+      if (!apkArtifact) throw new ApiRequestError(404, "artifact_not_found");
+      const evidenceArtifact = artifacts.find((artifact) => artifact.id !== artifactId && /evidence/i.test(artifact.name));
+      if (!evidenceArtifact) throw new ApiRequestError(409, "evidence_artifact_not_found");
+
+      const apkZip = await deps.githubService.downloadWorkflowArtifact(token, {
+        owner: String(project.repoOwner),
+        repo: String(project.repoName),
+        artifactId,
+      });
+      const apkEntry = findZipFileByExtension(apkZip.bytes, ".apk");
+      if (!apkEntry) throw new ApiRequestError(404, "apk_not_found");
+
+      const evidenceZip = await deps.githubService.downloadWorkflowArtifact(token, {
+        owner: String(project.repoOwner),
+        repo: String(project.repoName),
+        artifactId: evidenceArtifact.id,
+      });
+      const evidenceEntry = findZipFileByExtension(evidenceZip.bytes, ".txt")
+        || findZipFileByExtension(evidenceZip.bytes, ".log");
+      if (!evidenceEntry) throw new ApiRequestError(404, "evidence_not_found");
+      const result = verifyApkEvidence(apkEntry.content, Buffer.from(evidenceEntry.content).toString("utf8"));
+      sendJson(res, 200, {
+        buildId: String(build.id),
+        runId: Number(build.runId),
+        artifactId,
+        evidenceArtifactId: evidenceArtifact.id,
+        evidenceFilename: evidenceEntry.filename.split("/").pop() || evidenceEntry.filename,
+        filename: apkEntry.filename.split("/").pop() || "app.apk",
+        ...result,
+        note: "Signature and checksum are verified only from GitHub Actions evidence for a successful run.",
+      });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
   if (req.method === "GET" && path === "/api/projects/build/artifact/checksum") {
     try {
       const build = requireSuccessfulBuild(auth.userId, deps, url.searchParams.get("buildId") || "");
@@ -1059,8 +1108,12 @@ function defaultBuildWorkflow(): string {
     "          APK=$(find app/build/outputs/apk/debug -name '*.apk' | head -n 1)",
     "          test -n \"$APK\"",
     "          APKSIGNER=$(find \"$ANDROID_HOME/build-tools\" -type f -name apksigner | sort -V | tail -n 1)",
-    "          \"$APKSIGNER\" verify --verbose \"$APK\"",
-    "          sha256sum \"$APK\" > app-debug-apk.sha256",
+    "          {",
+    "            echo \"=== apksigner verify --verbose ===\"",
+    "            \"$APKSIGNER\" verify --verbose \"$APK\"",
+    "            echo \"=== sha256sum ===\"",
+    "            sha256sum \"$APK\"",
+    "          } > app-debug-apk.sha256 2>&1",
     "          cat app-debug-apk.sha256",
     "      - name: Upload APK",
     "        uses: actions/upload-artifact@v4",
@@ -1132,9 +1185,14 @@ function signedReleaseWorkflow(): string {
     "          test -n \"$APK\"",
     "          APKSIGNER=$(find \"$ANDROID_HOME/build-tools\" -type f -name apksigner | sort -V | tail -n 1)",
     "          AAPT=$(find \"$ANDROID_HOME/build-tools\" -type f -name aapt | sort -V | tail -n 1)",
-    "          \"$APKSIGNER\" verify --verbose --print-certs \"$APK\"",
-    "          \"$AAPT\" dump badging \"$APK\" | head -n 1",
-    "          sha256sum \"$APK\" > apk-release-evidence.txt",
+    "          {",
+    "            echo \"=== apksigner verify --verbose --print-certs ===\"",
+    "            \"$APKSIGNER\" verify --verbose --print-certs \"$APK\"",
+    "            echo \"=== aapt dump badging ===\"",
+    "            \"$AAPT\" dump badging \"$APK\"",
+    "            echo \"=== sha256sum ===\"",
+    "            sha256sum \"$APK\"",
+    "          } > apk-release-evidence.txt 2>&1",
     "          cat apk-release-evidence.txt",
     "      - name: Upload signed APK",
     "        uses: actions/upload-artifact@v4",

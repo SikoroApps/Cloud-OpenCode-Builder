@@ -12,7 +12,7 @@ physical-device claim is made unless actual evidence is recorded here.
 | 5.2 | GitHub OAuth | IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED |
 | 5.3 | GitHub repository connection | IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED |
 | 5.4 | Real GitHub Actions orchestration | IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED |
-| 5.5 | Signed APK delivery | NOT STARTED |
+| 5.5 | Signed APK delivery | IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED |
 | 5.6 | Real-device verification | NOT STARTED |
 
 ## Batch 5.1 — Deployment readiness
@@ -118,7 +118,29 @@ by the missing OAuth connection and deployed backend.
 
 ## Batch 5.5 — Signed APK delivery
 
-Not started.
+### Implemented
+
+- Generated signed-release and debug build workflows now write full `apksigner`, `aapt dump badging`
+  and `sha256sum` output into an evidence artifact on GitHub-hosted runners. Only protected Actions
+  secret names are referenced; no signing value is printed or stored.
+- Added `cloud/src/apk-evidence.ts` and `GET /api/projects/build/apk-verification` to verify a
+  successful run's APK against its evidence artifact: SHA-256 match, `apksigner` success marker,
+  package name, version and supported architectures. `verified` is false on any mismatch or missing
+  evidence.
+- Existing APK download link, `X-APK-Sha256` header and checksum endpoint are preserved.
+
+### Verified
+
+- `cd cloud && npm test`: **57 passed, 0 failures** (50 prior + 4 evidence-parser tests +
+  3 API verification tests).
+- Controlled tests prove valid evidence verifies, checksum mismatch fails, and missing evidence
+  artifact blocks verification. Templates still contain no signing values.
+
+### Blocked
+
+No real signed APK was built, downloaded or signature-verified here. Signing secrets and a real
+successful Actions release run are required. There is no APK download link or checksum to report as
+live evidence.
 
 ## Batch 5.6 — Real-device verification
 
