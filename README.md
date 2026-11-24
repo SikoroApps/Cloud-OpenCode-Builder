@@ -57,5 +57,12 @@ Batch 1 (foundation) is **COMPLETE** with green CI run `45274532780`: 3 Android 
 SHA-256: `b3e4729c46e479c4fd9b70712e522117739a726d92e4ca4592235e9d7ca9d104`. No hosted
 backend, GitHub integration, signed release or AI chat endpoint is deployed yet.
 
-See `docs/BUILD_ORDER.md` for the dependency-first plan and batch gates, and
-`docs/PROGRESS.md` for detailed evidence.
+See `docs/BUILD_ORDER.md` for the dependency-first plan and batch gates, `docs/PHASE_2.md` for the
+Cloud AI Engine phase, and `docs/PROGRESS.md` for detailed evidence.
+
+## Phase 2 status
+
+The deployable cloud backend and AI fallback engine are implemented under `cloud/` and verified
+locally. Real AI provider responses were observed during Phase 2 (`opencode/big-pickle` success and
+OpenCode free-provider `429 rate_limit`). Cloud deployment, OpenRouter credentials and final CI
+evidence are still pending.

@@ -39,3 +39,22 @@ Status: **COMPLETE** with CI evidence.
 - Cloud build orchestration and APK download links.
 - Image understanding/generation and web search.
 - Signed release builds.
+
+## Phase 2 — Cloud AI Engine
+
+Status: **IN PROGRESS** — local implementation and verification complete; cloud deployment and final CI evidence pending.
+
+Implemented:
+
+- Node.js cloud backend (`cloud/`): health, auth, chat, model endpoints; scrypt password hashing, hashed bearer sessions, SQLite chat persistence, AI fallback chain and providers.
+- Android cloud client: HTTPS enforcement, allowlist, register/login/chat/history/logout client, encrypted token store, secure URL tests.
+
+Verified locally:
+
+- Cloud backend tests: 7 passed, 0 failures.
+- Backend live smoke: health, auth, chat history and chat fallback-exhausted response.
+- Real OpenCode provider: `opencode/big-pickle` succeeded; stateless generate route returned real `429 rate_limit`.
+
+Remaining blockers:
+
+- OpenCode free quota reached; OpenRouter credentials not configured; cloud deployment pending; final CI evidence pending.

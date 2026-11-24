@@ -11,11 +11,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sikorokoro44.cloudopencode.data.network.CloudApiClientImpl
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -26,6 +28,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun CloudOpenCodeApp() {
+    val backendClient = remember { CloudApiClientImpl(BuildConfig.CLOUD_BASE_URL) }
+    val backendReady = remember { backendClient.isSecureUrl(backendClient.baseUrl()) }
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(
@@ -45,7 +49,14 @@ private fun CloudOpenCodeApp() {
                     modifier = Modifier.padding(top = 16.dp),
                     style = MaterialTheme.typography.bodyMedium,
                 )
+                Text(
+                    if (backendReady) "Cloud backend reachable: ${backendClient.baseUrl()}"
+                    else "Cloud backend not configured securely",
+                    modifier = Modifier.padding(top = 24.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         }
     }
 }
+

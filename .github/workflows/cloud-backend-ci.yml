@@ -1,0 +1,47 @@
+name: Cloud Backend CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloud-backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run backend tests
+        working-directory: cloud
+        run: npm test
+      - name: Start backend and smoke test health endpoint
+        working-directory: cloud
+        run: |
+          set -euo pipefail
+          export CLOUD_DB_PATH=/tmp/cloud-opencode-backend-test.sqlite
+          export PORT=8080
+          export HOST=127.0.0.1
+          nohup node src/index.ts > /tmp/cloud-opencode-backend.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/health > /tmp/cloud-opencode-health.json; then
+              break
+            fi
+            sleep 1
+          done
+          cat /tmp/cloud-opencode-health.json
+          echo
