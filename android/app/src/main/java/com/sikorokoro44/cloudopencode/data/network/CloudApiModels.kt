@@ -34,9 +34,7 @@ data class CloudChatResponse(
     val ai: AiResultDto?,
 )
 
-sealed class CloudApiError(val message: String) {
-    data class Http(val code: Int, override val message: String) : CloudApiError(message)
-    data class Network(override val message: String) : CloudApiError(message)
+sealed class CloudApiError(message: String) : Exception(message) {
+    data class Http(val code: Int, errorMessage: String) : CloudApiError(errorMessage)
+    data class Network(errorMessage: String) : CloudApiError(errorMessage)
 }
-
-fun CloudApiError.toCloudError(): CloudApiError = this

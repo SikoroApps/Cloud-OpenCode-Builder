@@ -1,5 +1,6 @@
 package com.sikorokoro44.cloudopencode.data.network
 
+import com.sikorokoro44.cloudopencode.BuildConfig
 import java.util.concurrent.TimeUnit
 import okhttp3.MediaType
 import okhttp3.OkHttpClient
@@ -30,70 +31,79 @@ class CloudApiClientImpl(
         .build()
 
     override fun baseUrl(): String = configuredBaseUrl
+
     override fun allowedHosts(): Set<String> = configuredAllowedHosts
+
     override fun isSecureUrl(url: String): Boolean {
         if (!url.startsWith("https://")) return false
         val host = runCatching { java.net.URI(url).host }.getOrNull() ?: return false
-        return allowedHosts.isEmpty() || allowedHosts.contains(host)
+        return configuredAllowedHosts.isEmpty() || configuredAllowedHosts.contains(host)
     }
 
     override fun register(email: String, password: String): Result<CloudToken> {
         val body = JSONObject().put("email", email).put("password", password)
-        val response = request("POST", "/api/auth/register", null, body)
+        val response: JSONObject = runCatching { request("POST", "/api/auth/register", null, body) }
+            .getOrElse { throw CloudApiError.Network("register failed") }
         val token = response.optString("token")
         return if (token.isNotBlank()) Result.success(CloudToken(token)) else Result.failure(CloudApiError.Network("register failed"))
     }
 
     override fun login(email: String, password: String): Result<CloudToken> {
         val body = JSONObject().put("email", email).put("password", password)
-        val response = request("POST", "/api/auth/login", null, body)
+        val response: JSONObject = runCatching { request("POST", "/api/auth/login", null, body) }
+            .getOrElse { throw CloudApiError.Network("login failed") }
         val token = response.optString("token")
         return if (token.isNotBlank()) Result.success(CloudToken(token)) else Result.failure(CloudApiError.Network("login failed"))
     }
 
-    override fun logout(token: String): Result<Unit> = runCatching {
-        request("POST", "/api/auth/logout", token, null)
-        Unit
+    override fun logout(token: String): Result<Unit> {
+        return runCatching { request("POST", "/api/auth/logout", token, null) }
+            .map { Unit }
     }
 
     override fun history(token: String, sessionKey: String): Result<List<ChatMessageDto>> {
-        val path = "/api/chat/history?sessionKey=${java.net.URLEncoder.encode(sessionKey, "UTF-8")}"
-        val response = request("GET", path, token, null) ?: return Result.failure(CloudApiError.Network("history failed"))
-        val array = response.optJSONArray("history") ?: return Result.failure(CloudApiError.Network("history failed"))
-        val messages = ArrayList<ChatMessageDto>()
-        for (index in 0 until array.length()) {
-            val item = array.optJSONObject(index) ?: continue
-            messages.add(
-                ChatMessageDto(
-                    id = item.optLong("id"),
-                    userId = item.optString("userId"),
-                    sessionKey = item.optString("sessionKey"),
-                    role = item.optString("role"),
-                    content = item.optString("content"),
-                    model = if (item.isNull("model")) null else item.optString("model"),
-                    createdAt = item.optLong("createdAt"),
-                    updatedAt = item.optLong("updatedAt"),
-                ),
-            )
+        return runCatching {
+            val response = request("GET", "/api/chat/history?sessionKey=${java.net.URLEncoder.encode(sessionKey, "UTF-8")}", token, null)
+            val array = response.optJSONArray("history") ?: throw CloudApiError.Network("history failed")
+            val messages = ArrayList<ChatMessageDto>()
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                messages.add(
+                    ChatMessageDto(
+                        id = item.optLong("id"),
+                        userId = item.optString("userId"),
+                        sessionKey = item.optString("sessionKey"),
+                        role = item.optString("role"),
+                        content = item.optString("content"),
+                        model = if (item.isNull("model")) null else item.optString("model"),
+                        createdAt = item.optLong("createdAt"),
+                        updatedAt = item.optLong("updatedAt"),
+                    ),
+                )
+            }
+            messages
         }
-        return Result.success(messages)
     }
 
     override fun sendChat(token: String, sessionKey: String, content: String): Result<CloudChatResponse> {
         val body = JSONObject().put("sessionKey", sessionKey).put("content", content)
-        val response = request("POST", "/api/chat", token, body) ?: return Result.failure(CloudApiError.Network("chat failed"))
-        val userMessage = response.optJSONObject("userMessage")?.let(::messageFromJson)
-        val assistantMessage = response.optJSONObject("assistantMessage")?.let(::messageFromJson)
-        val aiObject = response.optJSONObject("ai")
-        val ai = aiObject?.let {
-            AiResultDto(
-                model = it.optString("model"),
-                content = it.optString("content"),
-                finishReason = it.optString("finishReason"),
-                attempts = ArrayList<AiAttemptDto>(),
-            )
+        return runCatching { request("POST", "/api/chat", token, body) }.map { raw ->
+            val response = raw
+            val userMessage = response.optJSONObject("userMessage")?.let(::messageFromJson)
+                ?: throw CloudApiError.Network("chat failed")
+            val assistantMessage = response.optJSONObject("assistantMessage")?.let(::messageFromJson)
+                ?: throw CloudApiError.Network("chat failed")
+            val aiObject = response.optJSONObject("ai")
+            val ai = aiObject?.let {
+                AiResultDto(
+                    model = it.optString("model"),
+                    content = it.optString("content"),
+                    finishReason = it.optString("finishReason"),
+                    attempts = ArrayList<AiAttemptDto>(),
+                )
+            }
+            CloudChatResponse(userMessage, assistantMessage, ai)
         }
-        return Result.success(CloudChatResponse(userMessage, assistantMessage, ai))
     }
 
     private fun messageFromJson(json: JSONObject): ChatMessageDto = ChatMessageDto(
@@ -107,17 +117,16 @@ class CloudApiClientImpl(
         updatedAt = json.optLong("updatedAt"),
     )
 
-    private fun request(method: String, path: String, token: String?, body: JSONObject?): JSONObject? {
-        val mediaType: MediaType = MediaType.parse("application/json; charset=utf-8") ?: throw IllegalStateException("media type")
-        val requestBuilder = okhttp3.Request.Builder()
+    private fun request(method: String, path: String, token: String?, body: JSONObject?): JSONObject {
+        val mediaType = MediaType.get("application/json; charset=utf-8") ?: throw IllegalStateException("media type required")
+        val builder = Request.Builder()
             .url(configuredBaseUrl + path)
-            .apply {
-                if (token != null) addHeader("Authorization", "Bearer $token")
-            }
+        if (token != null) builder.addHeader("Authorization", "Bearer $token")
+        val httpMethod = Request.Method.valueOf(method)
         val request: Request = if (body != null) {
-            requestBuilder.post(RequestBody.create(mediaType, body.toString()))
+            builder.method(httpMethod, RequestBody.create(mediaType, body.toString())).build()
         } else {
-            requestBuilder.get()
+            builder.method(httpMethod).build()
         }
         val response: Response = okHttpClient.newCall(request).execute()
         val responseBody = response.body?.string().orEmpty()

@@ -55,6 +55,11 @@ Verified locally:
 - Backend live smoke: health, auth, chat history and chat fallback-exhausted response.
 - Real OpenCode provider: `opencode/big-pickle` succeeded; stateless generate route returned real `429 rate_limit`.
 
+Latest CI evidence (2026-11-24):
+
+- `Cloud Backend CI` run `45340096468` on Phase 2 commit: **success** (backend tests + health smoke green).
+- `Android CI` run `45340096492` on Phase 2 commit: **failure** — new Android client code did not compile; compile errors fixed in follow-up commit, rerun required.
+
 Remaining blockers:
 
 - OpenCode free quota reached; OpenRouter credentials not configured; cloud deployment pending; final CI evidence pending.

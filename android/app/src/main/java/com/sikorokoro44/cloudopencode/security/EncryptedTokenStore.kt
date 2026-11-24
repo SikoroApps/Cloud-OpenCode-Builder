@@ -51,7 +51,7 @@ class EncryptedTokenStore(private val context: Context) {
         val keyStore = KeyStore.getInstance(KeyStore.getDefaultType())
         keyStore.load(null)
         if (!keyStore.containsAlias(keyAlias)) {
-            val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KeyProperties.KEY_STORE)
+            val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES)
             val spec = KeyGenParameterSpec.Builder(
                 keyAlias,
                 KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
