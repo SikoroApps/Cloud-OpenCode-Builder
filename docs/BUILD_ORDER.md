@@ -71,7 +71,8 @@ Exit criteria:
 - Include app icons in builds.
 - Prepare signed release APK support using protected GitHub Actions secret names only; never commit
   signing material.
-- Backend tests: 30 passed locally; CI evidence recorded in `docs/PROGRESS.md` after push.
+- Backend tests: 30 passed locally; CI green on `45360550913` (Cloud Backend) and `45360550873`
+  (Android).
 
 ## Batch 4 — Advanced features (planned)
 

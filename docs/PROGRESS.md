@@ -160,11 +160,13 @@ HEAD `09c4d94` without rewriting Phase 2.
 - Tests verify APK response headers/body, browser-link creation and replay rejection, icon file
   generation, and absence of token/signing values in workflow output.
 - Android client gained artifact/link/icon/release methods; HTTPS integration checks unconfigured
-  endpoints fail safely. CI evidence for this batch is pending the commit push.
+  endpoints fail safely.
+- CI on commit `c576bc5`: `Cloud Backend CI` `45360550913` **success** and `Android CI`
+  `45360550873` **success** (all three jobs, including HTTPS integration).
 
 ### Blocked
 
 - No GitHub OAuth App client ID/secret, callback domain, permanent HTTPS backend or signing secrets
   were provided, so live OAuth, repository operations, commits, Actions runs, artifact downloads and
   signed releases cannot be tested.
-- CI evidence for Batch 3.5 is pending the commit push; no production/live build is claimed.
+- No production/live build is claimed; all evidence above is local, mocked and CI-based.

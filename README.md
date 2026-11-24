@@ -86,4 +86,5 @@ single-use links, launcher icon templates and signed-release workflows referenci
 GitHub Actions secrets. Success is reported only from actual GitHub conclusions. 30 backend tests
 pass (8 Phase 2 + 22 Phase 3). Live verification requires an OAuth App, HTTPS callback domain,
 client ID/secret, a 32-byte token encryption key and repository signing secrets as documented in
-`docs/PHASE_3.md`. No production/live build is claimed.
+`docs/PHASE_3.md`. Final Phase 3 CI is green on `45360550913` (Cloud Backend) and `45360550873`
+(Android). No production/live build is claimed.

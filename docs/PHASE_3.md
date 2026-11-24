@@ -148,6 +148,8 @@ No client ID, secret, token or encryption key is present in this repository.
 - `cd cloud && npm test`: **30 passed, 0 failures** (8 Phase 2 + 22 Phase 3 tests).
 - Tests cover in-memory ZIP parsing, artifact authorization, successful APK download headers/body,
   browser link expiry/replay rejection, icon templates, and secret-name-only release workflow.
+- CI on commit `c576bc5`: `Cloud Backend CI` `45360550913` **success** and `Android CI`
+  `45360550873` **success** (all three jobs, including HTTPS integration).
 - Live artifact download and signed release builds were not performed; they require the OAuth setup
   from Batch 3.1 and repository-configured signing secrets.
 
