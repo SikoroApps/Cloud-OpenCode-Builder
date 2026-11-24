@@ -170,3 +170,30 @@ HEAD `09c4d94` without rewriting Phase 2.
   were provided, so live OAuth, repository operations, commits, Actions runs, artifact downloads and
   signed releases cannot be tested.
 - No production/live build is claimed; all evidence above is local, mocked and CI-based.
+
+## Phase 4 — Live Integration and Release Verification
+
+Status: **BATCH 4.1 IMPLEMENTED; BATCHES 4.2–4.6 BLOCKED ON MANUAL EXTERNAL SETUP**; started from
+Phase 3 HEAD `54e2d49` without rewriting completed batches.
+
+### Batch 4.1 evidence
+
+- Inspected `docs/PHASE_3.md` and audited all required OAuth, backend, AI and signing values using
+  presence/format checks only; no secret value was printed.
+- Added masked `GET /api/config/readiness`, `npm run check:config`, and a Cloud Backend CI step.
+- `cd cloud && npm test`: **33 passed, 0 failures** (8 Phase 2 + 25 Phase 3/4 tests).
+- `cd cloud && npm run typecheck`: passed.
+- `cd cloud && npm run check:config`: passed; output contained only booleans, blocker codes, manual
+  checks and secret names.
+- GitHub CLI is authenticated with `repo`/`workflow` scopes, but it is not the app's OAuth
+  credential and was not used to simulate user consent.
+- Repository Actions secrets list is empty; organization secret listing returned HTTP 403.
+- Complete manual setup checklist and status classification are in `docs/PHASE_4.md`.
+
+### Blocked
+
+- No GitHub OAuth App, HTTPS callback domain, deployed backend, AI provider key or signing secrets
+  exist in this environment.
+- No browser authorization can be performed by this harness, so live OAuth cannot be completed.
+- No physical Android device is available, so real-device installation/launch cannot be verified.
+- No live-service or real-device claim is made; Batches 4.2–4.6 remain unexecuted.

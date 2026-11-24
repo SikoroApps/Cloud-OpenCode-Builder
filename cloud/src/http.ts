@@ -31,6 +31,7 @@ import {
   deleteBuildDownloadGrant,
 } from "./db.ts";
 import { loadConfig, type CloudConfig, type GithubConfig } from "./config.ts";
+import { getConfigReadiness, type ReadinessCloudContext } from "./readiness.ts";
 import { createGithubService, decryptToken, encryptToken, isGithubConfigured, type GithubService } from "./github.ts";
 import {
   createDefaultAiFilePlanner,
@@ -47,6 +48,7 @@ export interface ApiDependencies {
   githubService: GithubService;
   aiFilePlanner: AiFilePlanner;
   publicBaseUrl?: string;
+  readinessCloud?: ReadinessCloudContext;
 }
 
 class ApiRequestError extends Error {
@@ -67,6 +69,11 @@ export function createApiDependencies(config: CloudConfig = loadConfig()): ApiDe
     githubService: createGithubService(config.github),
     aiFilePlanner: createDefaultAiFilePlanner(),
     publicBaseUrl: config.baseUrl,
+    readinessCloud: {
+      baseUrl: config.baseUrl,
+      openRouterApiKeySet: Boolean(config.openRouterApiKey),
+      openCodeApiKeySet: Boolean(config.openCodeApiKey),
+    },
   };
 }
 
@@ -134,6 +141,15 @@ export async function handleApiRequest(
   const browserArtifactDownload = req.method === "GET" && path === "/api/projects/build/artifact" && url.searchParams.has("grant");
   if (!auth.userId && !browserArtifactDownload) {
     sendJson(res, 401, { error: "unauthorized" });
+    return;
+  }
+  if (req.method === "GET" && path === "/api/config/readiness") {
+    const cloud: ReadinessCloudContext = deps.readinessCloud || {
+      baseUrl: String(deps.publicBaseUrl || "http://localhost:8080"),
+      openRouterApiKeySet: false,
+      openCodeApiKeySet: false,
+    };
+    sendJson(res, 200, { readiness: getConfigReadiness(deps.githubConfig, cloud) });
     return;
   }
   if (req.method === "GET" && path === "/api/auth/me") {

@@ -88,3 +88,11 @@ pass (8 Phase 2 + 22 Phase 3). Live verification requires an OAuth App, HTTPS ca
 client ID/secret, a 32-byte token encryption key and repository signing secrets as documented in
 `docs/PHASE_3.md`. Final Phase 3 CI is green on `45360550913` (Cloud Backend) and `45360550873`
 (Android). No production/live build is claimed.
+
+## Phase 4 status
+
+Phase 4 started from `54e2d49`. Batch 4.1 added a masked configuration readiness checker, endpoint
+and CI step; 33 backend tests pass. Live OAuth, real repository commits, real Actions conclusions,
+APK signature verification and real-device installation are blocked until the OAuth App, deployed
+HTTPS backend, AI key, signing secrets and browser authorization described in `docs/PHASE_4.md` are
+provided. No live-service or production-release claim is made.

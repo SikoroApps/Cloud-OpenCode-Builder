@@ -651,6 +651,32 @@ test("browser APK link is short-lived and needs no token in the URL", async () =
   }
 });
 
+test("configuration readiness endpoint returns masked checks only", async () => {
+  const server = await startServer({
+    ...deps(),
+    readinessCloud: {
+      baseUrl: "https://backend.example.invalid",
+      openRouterApiKeySet: true,
+      openCodeApiKeySet: false,
+    },
+  });
+  try {
+    const auth = await registerAndConnect(server.baseUrl);
+    const response = await fetch(`${server.baseUrl}/api/config/readiness`, { headers: auth });
+    assert.equal(response.status, 200);
+    const body = await response.text();
+    const parsed = JSON.parse(body) as any;
+    assert.equal(parsed.readiness.githubOAuth.configured, true);
+    assert.equal(parsed.readiness.readyForLiveOAuth, true);
+    assert.equal(body.includes("client-secret"), false);
+    assert.equal(body.includes("gh-token-do-not-expose"), false);
+    assert.equal(body.includes("backend.example.invalid"), false);
+  } finally {
+    await server.close();
+    closeDb();
+  }
+});
+
 test("launcher icon and signed release templates never include signing values", async () => {
   const server = await startServer(deps());
   try {

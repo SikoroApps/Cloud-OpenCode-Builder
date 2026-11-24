@@ -74,7 +74,38 @@ Exit criteria:
 - Backend tests: 30 passed locally; CI green on `45360550913` (Cloud Backend) and `45360550873`
   (Android).
 
-## Batch 4 — Advanced features (planned)
+## Batch 4.1 — External configuration readiness (IMPLEMENTED, BLOCKED ON EXTERNAL VALUES)
+
+- Inspect Phase 3 setup requirements and validate presence/format only, never secret values.
+- Masked CLI checker and authenticated readiness endpoint added.
+- Audit result: app OAuth, encryption, AI, HTTPS backend and signing values are unset.
+- Backend tests: 33 passed locally; CI evidence recorded in `docs/PHASE_4.md`.
+
+## Batch 4.2 — Live GitHub OAuth (BLOCKED)
+
+- Requires manual creation of a GitHub OAuth App and browser authorization by a signed-in user.
+- A GitHub CLI token is not a substitute for in-app OAuth consent and was not used as one.
+
+## Batch 4.3 — Live AI file editing and commits (BLOCKED BY 4.2)
+
+- Requires a connected repository and a configured AI provider key.
+- No real repository was connected or modified.
+
+## Batch 4.4 — Real GitHub Actions orchestration (BLOCKED BY 4.3)
+
+- Requires a real connected repository with a committed Android project and workflow.
+- No live workflow was dispatched by the application.
+
+## Batch 4.5 — APK delivery and installation (BLOCKED BY 4.4)
+
+- Requires a successful live workflow, a real artifact and a device for install/launch proof.
+- No APK was downloaded or signature-verified in Phase 4.
+
+## Batch 4.6 — Final release (BLOCKED)
+
+- Cannot be claimed until live service, APK signature and device gates pass.
+
+## Batch 5 — Advanced features (planned)
 
 - Image uploads/understanding and image generation.
 - Real-time web search.
