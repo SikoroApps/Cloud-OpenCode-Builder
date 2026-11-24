@@ -131,10 +131,10 @@ class CloudApiClientImpl(
         val builder = Request.Builder()
             .url(configuredBaseUrl.trimEnd('/') + path)
         if (token != null) builder.addHeader("Authorization", "Bearer $token")
-        val request: Request = if (body != null) {
-            builder.method(method, body.toString().toRequestBody(mediaType)).build()
-        } else {
-            builder.method(method, null).build()
+        val request: Request = when {
+            body != null -> builder.method(method, body.toString().toRequestBody(mediaType)).build()
+            method == "GET" -> builder.get().build()
+            else -> builder.method(method, "".toRequestBody(mediaType)).build()
         }
         val response: Response = okHttpClient.newCall(request).execute()
         val responseBody = response.body?.string().orEmpty()
