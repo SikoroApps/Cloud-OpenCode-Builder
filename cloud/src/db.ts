@@ -35,6 +35,23 @@ export function getDb(path: string): DatabaseSync {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS github_oauth_states (
+      state_hash TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS github_connections (
+      user_id TEXT PRIMARY KEY,
+      github_user_id INTEGER NOT NULL,
+      login TEXT NOT NULL,
+      scopes TEXT NOT NULL,
+      token_ciphertext TEXT NOT NULL,
+      token_iv TEXT NOT NULL,
+      token_tag TEXT NOT NULL,
+      connected_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
   `);
   return db;
 }
@@ -106,4 +123,81 @@ export function listChatMessages(userId: string, sessionKey: string, limit = 200
 
 export function deleteChatMessages(userId: string, sessionKey: string): void {
   getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite").prepare("DELETE FROM chat_messages WHERE user_id = ? AND session_key = ?").run(userId, sessionKey);
+}
+
+export function insertGithubState(stateHash: string, userId: string, now: number, expiresAt: number): void {
+  getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite").prepare(
+    "INSERT INTO github_oauth_states (state_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
+  ).run(stateHash, userId, now, expiresAt);
+}
+
+export function findGithubState(stateHash: string): any | undefined {
+  const row = getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare("SELECT state_hash, user_id, expires_at FROM github_oauth_states WHERE state_hash = ?")
+    .get(stateHash) as any;
+  if (!row) return undefined;
+  if (Number(row.expires_at) < Date.now()) {
+    deleteGithubState(stateHash);
+    return undefined;
+  }
+  return row;
+}
+
+export function deleteGithubState(stateHash: string): void {
+  getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare("DELETE FROM github_oauth_states WHERE state_hash = ?")
+    .run(stateHash);
+}
+
+export function saveGithubConnection(input: {
+  userId: string;
+  githubUserId: number;
+  login: string;
+  scopes: string;
+  ciphertext: string;
+  iv: string;
+  tag: string;
+  now: number;
+}): void {
+  getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite").prepare(
+    `INSERT INTO github_connections
+      (user_id, github_user_id, login, scopes, token_ciphertext, token_iv, token_tag, connected_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET
+      github_user_id = excluded.github_user_id,
+      login = excluded.login,
+      scopes = excluded.scopes,
+      token_ciphertext = excluded.token_ciphertext,
+      token_iv = excluded.token_iv,
+      token_tag = excluded.token_tag,
+      updated_at = excluded.updated_at`,
+  ).run(
+    input.userId,
+    input.githubUserId,
+    input.login,
+    input.scopes,
+    input.ciphertext,
+    input.iv,
+    input.tag,
+    input.now,
+    input.now,
+  );
+}
+
+export function findGithubConnection(userId: string): any | undefined {
+  return getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare(
+      `SELECT github_user_id AS githubUserId, login, scopes, token_ciphertext AS ciphertext,
+              token_iv AS iv, token_tag AS tag, connected_at AS connectedAt, updated_at AS updatedAt
+       FROM github_connections WHERE user_id = ?`,
+    )
+    .get(userId) as any;
+}
+
+export function deleteGithubConnection(userId: string): any | undefined {
+  const existing = findGithubConnection(userId);
+  getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare("DELETE FROM github_connections WHERE user_id = ?")
+    .run(userId);
+  return existing;
 }

@@ -19,6 +19,9 @@ interface CloudApiClient {
     fun logout(token: String): Result<Unit>
     fun history(token: String, sessionKey: String): Result<List<ChatMessageDto>>
     fun sendChat(token: String, sessionKey: String, content: String): Result<CloudChatResponse>
+    fun githubOAuthStart(token: String): Result<GithubOAuthStart>
+    fun githubStatus(token: String): Result<GithubStatus>
+    fun githubDisconnect(token: String): Result<GithubDisconnectResult>
 }
 
 class CloudApiClientImpl(
@@ -110,6 +113,32 @@ class CloudApiClientImpl(
             }
             CloudChatResponse(userMessage, assistantMessage, ai)
         }
+    }
+
+    override fun githubOAuthStart(token: String): Result<GithubOAuthStart> = runCatching {
+        val response = request("GET", "/api/github/oauth/start", token, null)
+        val url = response.optString("authorizationUrl")
+        if (!url.startsWith("https://")) throw CloudApiError.Network("invalid OAuth URL")
+        GithubOAuthStart(url, response.optInt("expiresIn"))
+    }
+
+    override fun githubStatus(token: String): Result<GithubStatus> = runCatching {
+        val response = request("GET", "/api/github/status", token, null)
+        GithubStatus(
+            configured = response.optBoolean("configured"),
+            connected = response.optBoolean("connected"),
+            login = if (response.isNull("login")) null else response.optString("login"),
+            scopes = if (response.isNull("scopes")) null else response.optString("scopes"),
+            connectedAt = if (response.isNull("connectedAt")) null else response.optLong("connectedAt"),
+        )
+    }
+
+    override fun githubDisconnect(token: String): Result<GithubDisconnectResult> = runCatching {
+        val response = request("DELETE", "/api/github", token, null)
+        GithubDisconnectResult(
+            disconnected = response.optBoolean("disconnected"),
+            revoked = response.optBoolean("revoked"),
+        )
     }
 
     private fun messageFromJson(json: JSONObject): ChatMessageDto = ChatMessageDto(

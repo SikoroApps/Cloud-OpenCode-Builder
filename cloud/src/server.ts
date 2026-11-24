@@ -1,13 +1,14 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { loadConfig } from "./config.ts";
-import { handleApiRequest } from "./http.ts";
+import { createApiDependencies, createApiHandler } from "./http.ts";
 
 console.log("cloud backend module loaded");
 export async function startCloudServer(): Promise<void> {
   const config = loadConfig();
+  const apiHandler = createApiHandler(createApiDependencies(config));
   console.log(`starting cloud backend on ${config.host}:${config.port}`);
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
-    handleApiRequest(req, res).catch((error) => {
+    apiHandler(req, res).catch((error) => {
       const safeError = error as { name?: string; status?: number; kind?: string };
       console.error("request failed", {
         name: safeError?.name ?? "unknown_error",

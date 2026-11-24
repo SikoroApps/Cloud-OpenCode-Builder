@@ -34,6 +34,24 @@ data class CloudChatResponse(
     val ai: AiResultDto?,
 )
 
+data class GithubOAuthStart(
+    val authorizationUrl: String,
+    val expiresIn: Int,
+)
+
+data class GithubStatus(
+    val configured: Boolean,
+    val connected: Boolean,
+    val login: String?,
+    val scopes: String?,
+    val connectedAt: Long?,
+)
+
+data class GithubDisconnectResult(
+    val disconnected: Boolean,
+    val revoked: Boolean,
+)
+
 sealed class CloudApiError(message: String) : Exception(message) {
     data class Http(val code: Int, val errorMessage: String) : CloudApiError(errorMessage)
     data class Network(val errorMessage: String) : CloudApiError(errorMessage)

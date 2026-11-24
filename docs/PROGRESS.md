@@ -98,3 +98,26 @@ deployment and provider secrets are external follow-on dependencies.
   upstream during direct probes.
 - OpenCode free quotas can be exhausted; no availability is assumed without a fresh probe.
 - No separate Supabase project/credentials exist; the Messenger Pro project must not be reused.
+
+## Phase 3 — GitHub Integration & Cloud Android Builds
+
+Status: **BATCH 3.1 IMPLEMENTED, LIVE VERIFICATION BLOCKED**; started from Phase 2 HEAD `09c4d94`
+without rewriting Phase 2.
+
+### Batch 3.1 evidence
+
+- Backend GitHub OAuth start/callback/status/disconnect implemented with server-side token exchange,
+  one-time hashed state, AES-256-GCM encrypted token storage and safe redirects.
+- `cd cloud && npm test`: **14 passed, 0 failures** (8 Phase 2 + 6 Phase 3.1 tests).
+- Tests use a mocked GitHub provider; they are not live GitHub verification.
+- Android client gained GitHub status/OAuth/disconnect methods; the HTTPS integration test now
+  checks unconfigured GitHub status over HTTPS.
+- Exact credentials/setup needed are documented in `docs/PHASE_3.md`. No credentials were invented
+  or committed.
+
+### Blocked
+
+- No GitHub OAuth App client ID/secret or callback domain was provided, so live connect/disconnect
+  cannot be tested.
+- Repository management, commits, Actions orchestration and APK delivery remain dependency-blocked
+  behind live 3.1 configuration.
