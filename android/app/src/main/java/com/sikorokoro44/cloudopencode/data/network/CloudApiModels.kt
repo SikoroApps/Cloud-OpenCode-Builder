@@ -166,6 +166,15 @@ data class ApkDownloadLink(
     val expiresIn: Long,
 )
 
+data class ApkChecksum(
+    val buildId: String,
+    val runId: Long,
+    val artifactId: Long,
+    val filename: String,
+    val sizeInBytes: Long,
+    val sha256: String,
+)
+
 data class ReleaseTemplate(
     val file: ProjectFile,
     val requiredSecrets: List<String>,

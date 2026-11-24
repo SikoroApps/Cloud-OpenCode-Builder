@@ -334,11 +334,15 @@ export async function handleApiRequest(
       if (!instruction || instruction.length > 10_000) throw new ApiRequestError(400, "invalid_request");
       const existing = listProjectFiles(String(project.id)).map((file) => ({ path: String(file.path), content: String(file.content) }));
       const plan = await deps.aiFilePlanner({ instruction, files: existing });
+      const validatedOperations = plan.operations.map((operation) => ({
+        path: validatedPath(operation.path),
+        content: validatedContent(operation.content),
+      }));
       const now = Date.now();
-      for (const operation of plan.operations) {
+      for (const operation of validatedOperations) {
         saveProjectFile({ projectId: String(project.id), path: operation.path, content: operation.content, now });
       }
-      sendJson(res, 200, { model: plan.model, applied: plan.operations.map((operation) => operation.path) });
+      sendJson(res, 200, { model: plan.model, applied: validatedOperations.map((operation) => operation.path) });
     } catch (error) {
       sendGithubError(res, error);
     }
@@ -575,6 +579,26 @@ export async function handleApiRequest(
     }
     return;
   }
+  if (req.method === "GET" && path === "/api/projects/build/artifact/checksum") {
+    try {
+      const build = requireSuccessfulBuild(auth.userId, deps, url.searchParams.get("buildId") || "");
+      const artifactId = Number(url.searchParams.get("artifactId") || "");
+      if (!Number.isFinite(artifactId) || artifactId <= 0) throw new ApiRequestError(400, "invalid_request");
+      const apk = await resolveApkArtifact(auth.userId, deps, build, artifactId);
+      sendJson(res, 200, {
+        buildId: String(build.id),
+        runId: Number(build.runId),
+        artifactId,
+        filename: apk.filename,
+        sizeInBytes: apk.bytes.length,
+        sha256: apk.sha256,
+        note: "SHA-256 of the APK extracted from the GitHub Actions artifact.",
+      });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
   if (req.method === "GET" && path === "/api/projects/build/artifact") {
     try {
       const rawGrant = url.searchParams.get("grant") || "";
@@ -597,26 +621,17 @@ export async function handleApiRequest(
       if (build.status !== "completed" || build.conclusion !== "success") throw new ApiRequestError(409, "build_not_successful");
       if (!build.runId) throw new ApiRequestError(409, "build_not_started");
       if (!Number.isFinite(artifactId) || artifactId <= 0) throw new ApiRequestError(400, "invalid_request");
-      const project = findProjectById(userId, String(build.projectId));
-      if (!project) throw new ApiRequestError(404, "project_not_found");
-      const { token } = requireGithubAccess(userId, deps);
-      const artifact = await deps.githubService.downloadWorkflowArtifact(token, {
-        owner: String(project.repoOwner),
-        repo: String(project.repoName),
-        artifactId,
-      });
-      const apk = findZipFileByExtension(artifact.bytes, ".apk");
-      if (!apk) throw new ApiRequestError(404, "apk_not_found");
+      const apk = await resolveApkArtifact(userId, deps, build, artifactId);
       if (grantHash) deleteBuildDownloadGrant(grantHash);
-      const filename = apk.filename.split("/").pop()?.replace(/[^A-Za-z0-9._-]/g, "_") || "app.apk";
       res.writeHead(200, {
         "Content-Type": "application/vnd.android.package-archive",
-        "Content-Disposition": `attachment; filename="${filename}"`,
-        "Content-Length": apk.content.length,
+        "Content-Disposition": `attachment; filename="${apk.filename}"`,
+        "Content-Length": apk.bytes.length,
         "Cache-Control": "no-store",
         "X-Content-Type-Options": "nosniff",
+        "X-APK-Sha256": apk.sha256,
       });
-      res.end(Buffer.from(apk.content));
+      res.end(apk.bytes);
     } catch (error) {
       sendGithubError(res, error);
     }
@@ -695,6 +710,30 @@ function requireSuccessfulBuild(userId: string, deps: ApiDependencies, buildId: 
   return build;
 }
 
+async function resolveApkArtifact(
+  userId: string,
+  deps: ApiDependencies,
+  build: any,
+  artifactId: number,
+): Promise<{ filename: string; bytes: Buffer; sha256: string }> {
+  const project = findProjectById(userId, String(build.projectId));
+  if (!project) throw new ApiRequestError(404, "project_not_found");
+  const { token } = requireGithubAccess(userId, deps);
+  const artifact = await deps.githubService.downloadWorkflowArtifact(token, {
+    owner: String(project.repoOwner),
+    repo: String(project.repoName),
+    artifactId,
+  });
+  const apk = findZipFileByExtension(artifact.bytes, ".apk");
+  if (!apk) throw new ApiRequestError(404, "apk_not_found");
+  const bytes = Buffer.from(apk.content);
+  return {
+    filename: apk.filename.split("/").pop()?.replace(/[^A-Za-z0-9._-]/g, "_") || "app.apk",
+    bytes,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+  };
+}
+
 async function refreshBuild(userId: string, deps: ApiDependencies, rawBuildId: unknown): Promise<any> {
   const { token, project } = requireSelectedProject(userId, deps);
   const buildId = String(rawBuildId || "");
@@ -749,7 +788,10 @@ function validatedPath(rawPath: unknown): string {
     return validateFilePath(String(rawPath || ""));
   } catch (error) {
     const code = (error as Error)?.message;
-    throw new ApiRequestError(400, code === "unsupported_file_type" ? code : "invalid_file_path");
+    const safeCode = code === "unsupported_file_type" || code === "protected_file_path"
+      ? code
+      : "invalid_file_path";
+    throw new ApiRequestError(400, safeCode);
   }
 }
 
@@ -757,8 +799,9 @@ function validatedContent(content: unknown): string {
   if (typeof content !== "string") throw new ApiRequestError(400, "invalid_file_content");
   try {
     return validateFileContent(content);
-  } catch {
-    throw new ApiRequestError(400, "invalid_file_content");
+  } catch (error) {
+    const code = (error as Error)?.message;
+    throw new ApiRequestError(400, code === "sensitive_content_rejected" ? code : "invalid_file_content");
   }
 }
 
@@ -766,6 +809,8 @@ const SAFE_ERROR_CODES = new Set([
   "invalid_ai_file_plan",
   "invalid_file_path",
   "invalid_file_content",
+  "protected_file_path",
+  "sensitive_content_rejected",
   "unsupported_file_type",
   "file_read_transport_failed",
   "file_read_failed",
@@ -880,15 +925,30 @@ function defaultBuildWorkflow(): string {
     "        with:",
     "          distribution: temurin",
     "          java-version: '17'",
+    "      - uses: android-actions/setup-android@v3",
     "      - name: Verify launcher icon",
     "        run: test -f app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml",
     "      - name: Assemble debug APK",
     "        run: ./gradlew assembleDebug",
+    "      - name: Verify APK signature and checksum",
+    "        run: |",
+    "          set -euo pipefail",
+    "          APK=$(find app/build/outputs/apk/debug -name '*.apk' | head -n 1)",
+    "          test -n \"$APK\"",
+    "          APKSIGNER=$(find \"$ANDROID_HOME/build-tools\" -type f -name apksigner | sort -V | tail -n 1)",
+    "          \"$APKSIGNER\" verify --verbose \"$APK\"",
+    "          sha256sum \"$APK\" > app-debug-apk.sha256",
+    "          cat app-debug-apk.sha256",
     "      - name: Upload APK",
     "        uses: actions/upload-artifact@v4",
     "        with:",
     "          name: app-debug-apk",
     "          path: app/build/outputs/apk/debug/*.apk",
+    "      - name: Upload APK checksum evidence",
+    "        uses: actions/upload-artifact@v4",
+    "        with:",
+    "          name: app-debug-apk-evidence",
+    "          path: app-debug-apk.sha256",
     "",
   ].join("\n");
 }
@@ -916,6 +976,7 @@ function signedReleaseWorkflow(): string {
     "        with:",
     "          distribution: temurin",
     "          java-version: '17'",
+    "      - uses: android-actions/setup-android@v3",
     "      - name: Decode signing keystore",
     "        env:",
     "          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}",
@@ -941,11 +1002,27 @@ function signedReleaseWorkflow(): string {
     '            -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \\',
     '            -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \\',
     '            -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"',
+    "      - name: Verify signed APK signature and checksum",
+    "        run: |",
+    "          set -euo pipefail",
+    "          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -n 1)",
+    "          test -n \"$APK\"",
+    "          APKSIGNER=$(find \"$ANDROID_HOME/build-tools\" -type f -name apksigner | sort -V | tail -n 1)",
+    "          AAPT=$(find \"$ANDROID_HOME/build-tools\" -type f -name aapt | sort -V | tail -n 1)",
+    "          \"$APKSIGNER\" verify --verbose --print-certs \"$APK\"",
+    "          \"$AAPT\" dump badging \"$APK\" | head -n 1",
+    "          sha256sum \"$APK\" > apk-release-evidence.txt",
+    "          cat apk-release-evidence.txt",
     "      - name: Upload signed APK",
     "        uses: actions/upload-artifact@v4",
     "        with:",
     "          name: app-release-signed",
     "          path: app/build/outputs/apk/release/*.apk",
+    "      - name: Upload signed APK verification evidence",
+    "        uses: actions/upload-artifact@v4",
+    "        with:",
+    "          name: app-release-signed-evidence",
+    "          path: apk-release-evidence.txt",
     "",
   ].join("\n");
 }

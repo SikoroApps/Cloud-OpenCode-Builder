@@ -17,11 +17,37 @@ const ALLOWED_EXTENSIONS = [
 ];
 const MAX_FILE_BYTES = 200_000;
 
+const PROTECTED_FILE_PATHS = new Set([
+  ".env",
+  "gradle.properties",
+  "app/gradle.properties",
+  "local.properties",
+  "keystore.properties",
+  "app/keystore.properties",
+  "secrets.properties",
+  "google-services.json",
+  "app/google-services.json",
+]);
+
+const SENSITIVE_CONTENT_PATTERNS = [
+  /\bgh[pousr]_[A-Za-z0-9]{20,}/,
+  /\bgithub_pat_[A-Za-z0-9_]{20,}/,
+  /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/,
+];
+
+export function isProtectedFilePath(path: string): boolean {
+  const lower = path.toLowerCase();
+  if (PROTECTED_FILE_PATHS.has(lower)) return true;
+  if (lower.startsWith(".env.") || lower.startsWith(".git/") || lower.startsWith(".github/")) return true;
+  return lower.endsWith(".jks") || lower.endsWith(".keystore") || lower.endsWith(".pem") || lower.endsWith(".p12");
+}
+
 export function validateFilePath(rawPath: string): string {
   const path = String(rawPath || "").trim().replace(/^\/+/, "");
   if (!path || path.includes("..") || path.includes("\\") || path.length > 300) {
     throw new Error("invalid_file_path");
   }
+  if (isProtectedFilePath(path)) throw new Error("protected_file_path");
   const segments = path.split("/");
   if (segments.some((segment) => !segment || segment.startsWith(".") && segment !== ".gitignore")) {
     throw new Error("invalid_file_path");
@@ -36,6 +62,9 @@ export function validateFilePath(rawPath: string): string {
 export function validateFileContent(content: string): string {
   if (typeof content !== "string" || Buffer.byteLength(content, "utf8") > MAX_FILE_BYTES) {
     throw new Error("invalid_file_content");
+  }
+  if (SENSITIVE_CONTENT_PATTERNS.some((pattern) => pattern.test(content))) {
+    throw new Error("sensitive_content_rejected");
   }
   return content;
 }

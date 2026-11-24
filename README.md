@@ -91,8 +91,10 @@ client ID/secret, a 32-byte token encryption key and repository signing secrets 
 
 ## Phase 4 status
 
-Phase 4 started from `54e2d49`. Batch 4.1 added a masked configuration readiness checker, endpoint
-and CI step; 33 backend tests pass. Live OAuth, real repository commits, real Actions conclusions,
-APK signature verification and real-device installation are blocked until the OAuth App, deployed
-HTTPS backend, AI key, signing secrets and browser authorization described in `docs/PHASE_4.md` are
-provided. No live-service or production-release claim is made.
+Phase 4 started from `54e2d49`. Independent work for Batches 4.1–4.5 is implemented: masked
+configuration readiness checks, protected file/AI edit guards, encrypted-token tests, APK SHA-256
+checksums, and GitHub Actions templates that verify signatures and emit evidence artifacts. **38
+backend tests pass**. Live OAuth, real repository commits, real Actions conclusions, real APK
+signature verification and real-device installation remain blocked until the OAuth App, deployed
+HTTPS backend, AI key, signing secrets and browser authorization described in `docs/PHASE_4.md` and
+`docs/GITHUB_OAUTH_SETUP.md` are provided. No live-service or production-release claim is made.

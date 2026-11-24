@@ -40,6 +40,7 @@ interface CloudApiClient {
     fun buildLogs(token: String, buildId: String): Result<BuildLogSummary>
     fun buildArtifacts(token: String, buildId: String): Result<List<BuildArtifact>>
     fun apkDownloadLink(token: String, buildId: String, artifactId: Long): Result<ApkDownloadLink>
+    fun apkChecksum(token: String, buildId: String, artifactId: Long): Result<ApkChecksum>
     fun addLauncherIcon(token: String): Result<List<String>>
     fun signedReleaseWorkflow(token: String): Result<ReleaseTemplate>
 }
@@ -371,6 +372,24 @@ class CloudApiClientImpl(
             downloadUrl = response.optString("downloadUrl"),
             expiresAt = response.optLong("expiresAt"),
             expiresIn = response.optLong("expiresIn"),
+        )
+    }
+
+    override fun apkChecksum(token: String, buildId: String, artifactId: Long): Result<ApkChecksum> = runCatching {
+        val encoded = java.net.URLEncoder.encode(buildId, "UTF-8")
+        val response = request(
+            "GET",
+            "/api/projects/build/artifact/checksum?buildId=$encoded&artifactId=$artifactId",
+            token,
+            null,
+        )
+        ApkChecksum(
+            buildId = response.optString("buildId"),
+            runId = response.optLong("runId"),
+            artifactId = response.optLong("artifactId"),
+            filename = response.optString("filename"),
+            sizeInBytes = response.optLong("sizeInBytes"),
+            sha256 = response.optString("sha256"),
         )
     }
 

@@ -4,7 +4,7 @@ import { createServer, type Server } from "node:http";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import type { GithubConfig } from "../src/config.ts";
 import type { ApiDependencies } from "../src/http.ts";
@@ -651,6 +651,94 @@ test("browser APK link is short-lived and needs no token in the URL", async () =
   }
 });
 
+test("AI file plans cannot write protected paths or secret-bearing content", async () => {
+  const protectedServer = await startServer({
+    ...deps(),
+    aiFilePlanner: async () => ({
+      model: "mock/unsafe-path-planner",
+      operations: [{ path: "gradle.properties", content: "android.enableJetifier=true\n" }],
+    }),
+  });
+  try {
+    const auth = await registerAndConnect(protectedServer.baseUrl);
+    await createProject(protectedServer.baseUrl, auth);
+    const response = await fetch(`${protectedServer.baseUrl}/api/projects/ai-files`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ instruction: "change build config" }),
+    });
+    assert.equal(response.status, 400);
+    assert.equal(((await response.json()) as any).error, "protected_file_path");
+    const files = await fetch(`${protectedServer.baseUrl}/api/projects/files`, { headers: auth });
+    assert.deepEqual(((await files.json()) as any).files, []);
+  } finally {
+    await protectedServer.close();
+    closeDb();
+  }
+
+  const secretServer = await startServer({
+    ...deps(),
+    aiFilePlanner: async () => ({
+      model: "mock/unsafe-content-planner",
+      operations: [{ path: "README.md", content: "token=ghp_abcdefghijklmnopqrstuvwxyz0123456789" }],
+    }),
+  });
+  try {
+    const auth = await registerAndConnect(secretServer.baseUrl);
+    await createProject(secretServer.baseUrl, auth);
+    const response = await fetch(`${secretServer.baseUrl}/api/projects/ai-files`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ instruction: "add a token" }),
+    });
+    assert.equal(response.status, 400);
+    assert.equal(((await response.json()) as any).error, "sensitive_content_rejected");
+    const files = await fetch(`${secretServer.baseUrl}/api/projects/files`, { headers: auth });
+    assert.deepEqual(((await files.json()) as any).files, []);
+  } finally {
+    await secretServer.close();
+    closeDb();
+  }
+});
+
+test("APK checksum endpoint and downloads expose the extracted APK SHA-256", async () => {
+  const server = await startServer(deps(true, mockService({ withArtifact: true })));
+  try {
+    const auth = await registerAndConnect(server.baseUrl);
+    await createProject(server.baseUrl, auth);
+    let response = await fetch(`${server.baseUrl}/api/projects/builds`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const buildId = String(((await response.json()) as any).build.id);
+    for (let index = 0; index < 2; index += 1) {
+      await fetch(`${server.baseUrl}/api/projects/build/refresh`, {
+        method: "POST",
+        headers: { ...auth, "Content-Type": "application/json" },
+        body: JSON.stringify({ buildId }),
+      });
+    }
+    const expected = createHash("sha256").update("APK-BYTES-FOR-DOWNLOAD").digest("hex");
+
+    response = await fetch(`${server.baseUrl}/api/projects/build/artifact/checksum?buildId=${encodeURIComponent(buildId)}&artifactId=7`, { headers: auth });
+    assert.equal(response.status, 200);
+    const checksum = (await response.json()) as any;
+    assert.equal(checksum.sha256, expected);
+    assert.equal(checksum.sizeInBytes, Buffer.byteLength("APK-BYTES-FOR-DOWNLOAD"));
+    assert.equal(checksum.filename, "app-debug.apk");
+    assert.equal(JSON.stringify(checksum).includes("gh-token-do-not-expose"), false);
+
+    response = await fetch(`${server.baseUrl}/api/projects/build/artifact?buildId=${encodeURIComponent(buildId)}&artifactId=7`, { headers: auth });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("x-apk-sha256"), expected);
+    assert.equal(await response.text(), "APK-BYTES-FOR-DOWNLOAD");
+  } finally {
+    await server.close();
+    closeDb();
+  }
+});
+
 test("configuration readiness endpoint returns masked checks only", async () => {
   const server = await startServer({
     ...deps(),
@@ -702,6 +790,10 @@ test("launcher icon and signed release templates never include signing values", 
     ]);
     assert.equal(workflow.file.content.includes("${{ secrets.ANDROID_KEYSTORE_BASE64 }}"), true);
     assert.equal(workflow.file.content.includes("app/release.jks"), true);
+    assert.equal(workflow.file.content.includes('"$APKSIGNER" verify --verbose --print-certs "$APK"'), true);
+    assert.equal(workflow.file.content.includes("dump badging"), true);
+    assert.equal(workflow.file.content.includes("sha256sum"), true);
+    assert.equal(workflow.file.content.includes("android-actions/setup-android@v3"), true);
     response = await fetch(`${server.baseUrl}/api/projects/file?path=.gitignore`, { headers: auth });
     assert.equal(((await response.json()) as any).file.content.includes("*.jks"), true);
     assert.equal(/gh-token-do-not-expose|client-secret|BEGIN PRIVATE KEY/.test(JSON.stringify(workflow)), false);

@@ -173,8 +173,8 @@ HEAD `09c4d94` without rewriting Phase 2.
 
 ## Phase 4 — Live Integration and Release Verification
 
-Status: **BATCH 4.1 IMPLEMENTED; BATCHES 4.2–4.6 BLOCKED ON MANUAL EXTERNAL SETUP**; started from
-Phase 3 HEAD `54e2d49` without rewriting completed batches.
+Status: **INDEPENDENT WORK FOR BATCHES 4.1–4.6 IMPLEMENTED; LIVE/RELEASE GATES BLOCKED ON MANUAL
+EXTERNAL SETUP**; started from Phase 3 HEAD `54e2d49` without rewriting completed batches.
 
 ### Batch 4.1 evidence
 
@@ -192,10 +192,28 @@ Phase 3 HEAD `54e2d49` without rewriting completed batches.
 - CI on commit `7c92adb`: `Cloud Backend CI` `45365548356` **success** (including masked readiness
   check) and `Android CI` `45365548349` **success** (all jobs, including HTTPS integration).
 
+### Batches 4.2–4.5 independent implementation evidence
+
+- OAuth token storage tests prove AES-256-GCM encryption, authenticated decryption, tamper rejection,
+  one-time state use and absence of token material in API responses and redirects.
+- AI/manual file editing now rejects protected paths (`.env*`, `.github/*`, Gradle/keystore properties,
+  keystores, certificates and Firebase service JSON) and secret-bearing content (GitHub tokens and
+  private keys). Mocked tests confirm unsafe plans write no files.
+- Generated build and signed-release workflows now use GitHub-hosted Android tooling and emit
+  `apksigner`, `aapt` and `sha256sum` evidence artifacts. Only protected Actions secret names are
+  referenced; no signing value is printed or stored.
+- APK downloads expose `X-APK-Sha256`; `GET /api/projects/build/artifact/checksum` returns SHA-256 and
+  size for the APK extracted from a successful run's artifact. Android client and HTTPS integration
+  check were updated.
+- `cd cloud && npm test`: **38 passed, 0 failures**; `cd cloud && npm run typecheck`: passed;
+  `git diff --check`: passed.
+- Live OAuth, real commits, real Actions runs, real APK artifacts and device installation were not
+  performed; see `docs/PHASE_4.md`.
+
 ### Blocked
 
 - No GitHub OAuth App, HTTPS callback domain, deployed backend, AI provider key or signing secrets
   exist in this environment.
 - No browser authorization can be performed by this harness, so live OAuth cannot be completed.
 - No physical Android device is available, so real-device installation/launch cannot be verified.
-- No live-service or real-device claim is made; Batches 4.2–4.6 remain unexecuted.
+- No live-service or real-device claim is made; live portions of Batches 4.2–4.6 remain unverified.

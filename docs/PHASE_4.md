@@ -23,7 +23,7 @@ placement, key generation and safe verification commands.
 
 ### Verified locally
 
-- `cd cloud && npm test`: **33 passed, 0 failures** (8 Phase 2 + 25 Phase 3/4 tests).
+- `cd cloud && npm test`: **38 passed, 0 failures** after the Batch 4.2–4.5 hardening work below.
 - `cd cloud && npm run typecheck`: passed.
 - `cd cloud && npm run check:config`: passed and printed only booleans, blocker codes, manual checks
   and secret names.
@@ -75,42 +75,59 @@ configured in the `SikoroApps/Cloud-OpenCode-Builder` repository secrets list.
 Steps 1–7 are explained in detail, with safe verification commands, in
 `docs/GITHUB_OAUTH_SETUP.md`.
 
-## Batch 4.2 — Live GitHub OAuth (BLOCKED)
+## Batch 4.2 — Live GitHub OAuth (IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED)
 
 - Follow `docs/GITHUB_OAUTH_SETUP.md` for the exact manual setup and safe verification procedure.
-- Implemented endpoints already exist from Batch 3.1, but live start/callback/status/disconnect was
-  not run because no OAuth App or browser authorization exists.
-- Secure token storage is covered by automated tests only; no real token was stored by the backend.
-- No token appeared in API responses, logs or URLs because no live OAuth flow was performed.
+- Existing start/callback/status/disconnect endpoints were preserved.
+- New tests prove AES-256-GCM encrypted storage, authenticated decryption, tamper rejection, one-time
+  state handling and absence of token material from status, repository and redirect responses.
+- No live OAuth App exists and no browser authorization was performed. No real token was stored.
+- `connected: true` has not been observed against a live backend, so OAuth is **not** live-verified.
 
-## Batch 4.3 — Live AI file editing and commits (BLOCKED BY 4.2)
+## Batch 4.3 — Live AI file editing and commits (IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED)
 
-- No actual repository was connected through the app.
-- No AI file plan was generated against a live provider.
-- No real commit was made through the implemented API.
+- Added defensive enforcement for both manual and AI-generated file edits:
+  - protected paths: `.env*`, `.github/*`, Gradle properties, keystore properties, keystores,
+    certificates and Firebase service-account JSON;
+  - secret-bearing content: GitHub token patterns and private-key blocks are rejected before a file
+    can be saved or committed.
+- Mocked tests confirm unsafe AI plans are rejected and no unauthorized file is written.
+- No actual repository was connected or modified, no live AI provider was called, and no real commit
+  was made.
 
-## Batch 4.4 — Real GitHub Actions orchestration (BLOCKED BY 4.3)
+## Batch 4.4 — Real GitHub Actions orchestration (IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED)
 
-- No live workflow was dispatched by the application.
-- No real workflow-run ID, job conclusion or log was retrieved in Phase 4.
-- No success was inferred from HTTP 200 or dispatch-only responses.
+- Dispatch, run-id capture, status refresh, job conclusion and failed-step retrieval are preserved.
+- Generated build and release workflows now install Android build tools and emit signature/checksum
+  evidence through `apksigner`, `aapt` and `sha256sum` on GitHub-hosted runners.
+- Mocked tests still require an actual `success` workflow conclusion before artifacts are exposed;
+  dispatch-only HTTP 200 responses are never treated as successful builds.
+- No live workflow was dispatched by the application and no real run ID or log was retrieved.
 
-## Batch 4.5 — APK delivery and installation (BLOCKED BY 4.4)
+## Batch 4.5 — APK delivery and installation (IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED)
 
-- No live artifact was retrieved.
-- No APK package name, version, architecture, compatibility or signature was verified.
-- No real-device install/launch was attempted; no device is available to this environment.
+- Added `GET /api/projects/build/artifact/checksum` and an `X-APK-Sha256` response header on APK
+  downloads. The checksum is computed from the APK bytes extracted from the GitHub Actions artifact.
+- The signed-release workflow template now verifies the APK signature with `apksigner`, prints package
+  metadata with `aapt`, writes a SHA-256 checksum and uploads an evidence artifact. Secret values are
+  never printed; only protected Actions secret names are referenced.
+- Android client gained `apkChecksum` and the HTTPS integration check covers its unconfigured error.
+- No live artifact was downloaded, no APK signature was verified on a real APK, and no device
+  install/launch was attempted.
 
 ## Batch 4.6 — Final release (BLOCKED)
 
 A production-ready release cannot be claimed until the live OAuth, real repository commit, real
-Actions conclusion, APK signature and real-device gates above are completed with actual evidence.
+Actions conclusion, real signed APK signature and real-device gates above pass with actual evidence.
+The independent implementation and automated-test gates are complete, but the release gate remains
+closed.
 
 ## Status classification
 
-- **Implemented**: Batch 4.1 readiness checker, endpoint, CI step and tests.
-- **Automated-test verified**: 33 backend tests, masked checker and existing Phase 2/3 CI.
+- **Implemented**: Batch 4.1 readiness tooling; OAuth/file/build/APK hardening in Batches 4.2–4.5.
+- **Automated-test verified**: 38 backend tests, masked checker and CI workflows.
 - **Live-service verified**: none in Phase 4; GitHub CLI authentication only confirms CLI access,
   not application OAuth.
+- **APK verified**: none; no real APK artifact or signature report was available in this environment.
 - **Real-device verified**: none; no physical device or Android SDK is available here.
-- **Blocked**: Batches 4.2–4.6 pending the manual setup listed above.
+- **Blocked**: live portions of Batches 4.2–4.6 pending the manual setup listed above.

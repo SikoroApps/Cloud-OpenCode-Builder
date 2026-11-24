@@ -82,29 +82,38 @@ Exit criteria:
 - Backend tests: 33 passed locally; CI green on `45365548356` (Cloud Backend) and `45365548349`
   (Android).
 
-## Batch 4.2 — Live GitHub OAuth (BLOCKED)
+## Batch 4.2 — Live GitHub OAuth (IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED)
 
-- Requires manual creation of a GitHub OAuth App and browser authorization by a signed-in user.
-- A GitHub CLI token is not a substitute for in-app OAuth consent and was not used as one.
+- Existing OAuth start/callback/status/disconnect implementation is preserved.
+- Added tests for encrypted-at-rest token storage, authenticated decryption, tamper rejection and
+  token absence from responses/redirects.
+- Beginner setup instructions: `docs/GITHUB_OAUTH_SETUP.md`.
+- Live verification still requires manual OAuth App creation and browser authorization.
 
-## Batch 4.3 — Live AI file editing and commits (BLOCKED BY 4.2)
+## Batch 4.3 — Live AI file editing and commits (IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED)
 
-- Requires a connected repository and a configured AI provider key.
-- No real repository was connected or modified.
+- Added protected-path and secret-content enforcement for manual and AI-generated file edits.
+- Protected paths include `.env*`, `.github/*`, Gradle properties, keystore properties, keystores and
+  Firebase config files; GitHub token and private-key patterns are rejected.
+- No real repository was connected or modified; live commits remain blocked by 4.2.
 
-## Batch 4.4 — Real GitHub Actions orchestration (BLOCKED BY 4.3)
+## Batch 4.4 — Real GitHub Actions orchestration (IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED)
 
-- Requires a real connected repository with a committed Android project and workflow.
+- Workflow templates now install Android build tools and verify APK signature/checksum evidence.
+- Dispatch/run-id/status/conclusion handling is preserved and covered by mocked tests.
 - No live workflow was dispatched by the application.
 
-## Batch 4.5 — APK delivery and installation (BLOCKED BY 4.4)
+## Batch 4.5 — APK delivery and installation (IMPLEMENTED/AUTOMATED TESTS; LIVE BLOCKED)
 
-- Requires a successful live workflow, a real artifact and a device for install/launch proof.
-- No APK was downloaded or signature-verified in Phase 4.
+- Added `GET /api/projects/build/artifact/checksum` and `X-APK-Sha256` on APK downloads.
+- Signed-release template now runs `apksigner verify --verbose --print-certs`, `aapt dump badging`
+  and `sha256sum` on GitHub Actions, then uploads verification evidence.
+- No live APK was downloaded, signature-verified or installed in this environment.
 
 ## Batch 4.6 — Final release (BLOCKED)
 
-- Cannot be claimed until live service, APK signature and device gates pass.
+- Cannot be claimed until live OAuth, real commit, live successful workflow, real signed APK and
+  device gates pass. Independent hardening and automated-test gates are complete.
 
 ## Batch 5 — Advanced features (planned)
 

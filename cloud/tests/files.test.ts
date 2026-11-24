@@ -8,7 +8,7 @@ test("project file paths reject traversal, hidden and unsupported files", () => 
   assert.throws(() => validateFilePath("../secrets.md"), /invalid_file_path/);
   assert.throws(() => validateFilePath("app\\src\\Main.kt"), /invalid_file_path/);
   assert.throws(() => validateFilePath("app/src/.hidden.kt"), /invalid_file_path/);
-  assert.throws(() => validateFilePath("app/keystore.jks"), /unsupported_file_type/);
+  assert.throws(() => validateFilePath("app/keystore.jks"), /protected_file_path/);
 });
 
 test("project file content is bounded to a safe UTF-8 size", () => {
