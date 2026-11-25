@@ -15,12 +15,15 @@ class EncryptedTokenStore(private val context: Context) {
     private val prefs = context.getSharedPreferences("cloud_opencode_token", Context.MODE_PRIVATE)
 
     fun save(token: String) {
-        prefs.edit().putString("token", encrypt(token)).apply()
+        // commit() makes the token durable before the app can show an authenticated screen.
+        prefs.edit().putString("token", encrypt(token)).commit()
     }
 
     fun load(): String? = decrypt(prefs.getString("token", null))
 
-    fun clear() = prefs.edit().remove("token").apply()
+    fun clear() {
+        prefs.edit().remove("token").commit()
+    }
 
     private fun encrypt(plain: String): String {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")

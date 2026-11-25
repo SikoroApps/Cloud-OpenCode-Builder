@@ -224,6 +224,34 @@ data class CloudTask(
     val updatedAt: Long,
 )
 
+data class GithubReadiness(
+    val configured: Boolean,
+    val clientIdSet: Boolean,
+    val clientSecretSet: Boolean,
+    val redirectUriHttps: Boolean,
+    val encryptionKeyValid: Boolean,
+    val appCallbackSet: Boolean,
+    val scopes: String,
+)
+
+data class CloudReadiness(
+    val baseUrlSet: Boolean,
+    val baseUrlHttps: Boolean,
+    val openRouterKeySet: Boolean,
+    val openCodeKeySet: Boolean,
+)
+
+data class ConfigReadiness(
+    val githubOAuth: GithubReadiness,
+    val cloudBackend: CloudReadiness,
+    val requiredActionsSecrets: List<String>,
+    val manualChecks: List<String>,
+    val blockers: List<String>,
+    val readyForLiveOAuth: Boolean,
+    val readyForLiveAiEditing: Boolean,
+    val readyForLiveBuilds: Boolean,
+)
+
 sealed class CloudApiError(message: String) : Exception(message) {
     data class Http(val code: Int, val errorMessage: String) : CloudApiError(errorMessage)
     data class Network(val errorMessage: String) : CloudApiError(errorMessage)

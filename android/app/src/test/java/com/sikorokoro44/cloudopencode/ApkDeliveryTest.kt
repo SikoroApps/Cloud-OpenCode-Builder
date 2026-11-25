@@ -63,6 +63,16 @@ class ApkDeliveryTest {
     }
 
     @Test
+    fun expiredArtifactsAreNeverPreferred() {
+        val apk = artifact(3, "release-apk")
+        val expired = artifact(9, "old-apk").copy(expired = true)
+        assertEquals(apk, ApkDelivery.preferredArtifact(listOf(expired, apk)))
+        assertNull(ApkDelivery.preferredArtifact(listOf(expired)))
+        assertEquals(listOf(apk), ApkDelivery.availableArtifacts(listOf(expired, apk)))
+        assertTrue(ApkDelivery.artifactStatus(expired).contains("expired"))
+    }
+
+    @Test
     fun formatsFileSizesForDisplay() {
         assertEquals("512 B", ApkDelivery.formatFileSize(512))
         assertEquals("1.00 KiB", ApkDelivery.formatFileSize(1024))

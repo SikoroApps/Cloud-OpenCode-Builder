@@ -14,6 +14,9 @@ interface CloudApiClient {
     fun allowedHosts(): Set<String>
     fun isSecureUrl(url: String): Boolean
     fun health(): Result<Unit>
+    fun models(): Result<List<String>>
+    fun configReadiness(): Result<ConfigReadiness>
+    fun me(token: String): Result<CloudUser>
     fun register(email: String, password: String): Result<CloudToken>
     fun login(email: String, password: String): Result<CloudToken>
     fun logout(token: String): Result<Unit>
@@ -69,6 +72,47 @@ class CloudApiClientImpl(
     override fun health(): Result<Unit> = runCatching {
         request("GET", "/health", null, null)
         Unit
+    }
+
+    override fun models(): Result<List<String>> = runCatching {
+        val response = request("GET", "/api/models", null, null)
+        stringArray(response.optJSONArray("models"))
+    }
+
+    override fun configReadiness(): Result<ConfigReadiness> = runCatching {
+        val response = request("GET", "/api/config/readiness", null, null).optJSONObject("readiness")
+            ?: throw CloudApiError.Network("readiness response missing")
+        val github = response.optJSONObject("githubOAuth") ?: throw CloudApiError.Network("readiness github section missing")
+        val cloud = response.optJSONObject("cloudBackend") ?: throw CloudApiError.Network("readiness cloud section missing")
+        ConfigReadiness(
+            githubOAuth = GithubReadiness(
+                configured = github.optBoolean("configured"),
+                clientIdSet = github.optBoolean("clientIdSet"),
+                clientSecretSet = github.optBoolean("clientSecretSet"),
+                redirectUriHttps = github.optBoolean("redirectUriHttps"),
+                encryptionKeyValid = github.optBoolean("encryptionKeyValid"),
+                appCallbackSet = github.optBoolean("appCallbackSet"),
+                scopes = github.optString("scopes"),
+            ),
+            cloudBackend = CloudReadiness(
+                baseUrlSet = cloud.optBoolean("baseUrlSet"),
+                baseUrlHttps = cloud.optBoolean("baseUrlHttps"),
+                openRouterKeySet = cloud.optBoolean("openRouterKeySet"),
+                openCodeKeySet = cloud.optBoolean("openCodeKeySet"),
+            ),
+            requiredActionsSecrets = stringArray(response.optJSONArray("requiredActionsSecrets")),
+            manualChecks = stringArray(response.optJSONArray("manualChecks")),
+            blockers = stringArray(response.optJSONArray("blockers")),
+            readyForLiveOAuth = response.optBoolean("readyForLiveOAuth"),
+            readyForLiveAiEditing = response.optBoolean("readyForLiveAiEditing"),
+            readyForLiveBuilds = response.optBoolean("readyForLiveBuilds"),
+        )
+    }
+
+    override fun me(token: String): Result<CloudUser> = runCatching {
+        val user = request("GET", "/api/auth/me", token, null).optJSONObject("user")
+            ?: throw CloudApiError.Network("account response missing")
+        CloudUser(id = user.optString("id"), email = user.optString("email"))
     }
 
     override fun allowedHosts(): Set<String> = configuredAllowedHosts
@@ -600,6 +644,16 @@ class CloudApiClientImpl(
         defaultBranch = json.optString("defaultBranch"),
         htmlUrl = json.optString("htmlUrl"),
     )
+
+    private fun stringArray(array: org.json.JSONArray?): List<String> {
+        if (array == null) return emptyList()
+        val values = ArrayList<String>()
+        for (index in 0 until array.length()) {
+            val value = array.optString(index)
+            if (value.isNotBlank()) values.add(value)
+        }
+        return values
+    }
 
     private fun messageFromJson(json: JSONObject): ChatMessageDto = ChatMessageDto(
         id = json.optLong("id"),

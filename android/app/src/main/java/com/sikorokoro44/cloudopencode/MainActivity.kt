@@ -9,15 +9,24 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.sikorokoro44.cloudopencode.data.network.CloudApiClientImpl
 import com.sikorokoro44.cloudopencode.security.EncryptedTokenStore
+import com.sikorokoro44.cloudopencode.ui.AppSettings
 import com.sikorokoro44.cloudopencode.ui.CloudOpenCodeApp
 import com.sikorokoro44.cloudopencode.ui.CloudOpenCodeViewModel
+import com.sikorokoro44.cloudopencode.ui.GithubOAuthResult
 
 class MainActivity : ComponentActivity() {
-    private val client by lazy { CloudApiClientImpl(BuildConfig.CLOUD_BASE_URL, emptySet()) }
+    private val allowedHosts by lazy {
+        BuildConfig.CLOUD_HOST_ALLOWLIST.split(',')
+            .map { it.trim().lowercase() }
+            .filter { it.isNotEmpty() }
+            .toSet()
+    }
+    private val client by lazy { CloudApiClientImpl(BuildConfig.CLOUD_BASE_URL, allowedHosts) }
     private val tokenStore by lazy { EncryptedTokenStore(applicationContext) }
+    private val settings by lazy { AppSettings(applicationContext) }
     private val viewModel: CloudOpenCodeViewModel by viewModels {
         viewModelFactory {
-            initializer { CloudOpenCodeViewModel(client, tokenStore, applicationContext) }
+            initializer { CloudOpenCodeViewModel(client, tokenStore, settings, applicationContext) }
         }
     }
 
@@ -35,7 +44,7 @@ class MainActivity : ComponentActivity() {
 
     private fun handleOAuthCallback(intent: Intent?) {
         val data = intent?.data ?: return
-        if (data.scheme != "cloudopencode" || data.host != "github") return
+        if (!GithubOAuthResult.isCallback(data.scheme, data.host, data.path)) return
         viewModel.handleGithubOAuthCallback(
             status = data.getQueryParameter("status"),
             error = data.getQueryParameter("error"),

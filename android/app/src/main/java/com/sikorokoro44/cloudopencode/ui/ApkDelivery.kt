@@ -18,10 +18,23 @@ object ApkDelivery {
         else -> "Build ${build.id} succeeded; load artifacts to deliver the APK"
     }
 
-    fun preferredArtifact(artifacts: List<BuildArtifact>): BuildArtifact? =
-        artifacts.firstOrNull { it.name.contains("apk", ignoreCase = true) }
-            ?: artifacts.firstOrNull { it.name.contains("debug", ignoreCase = true) }
-            ?: artifacts.firstOrNull()
+    /** Expired artifacts must never be selected for a download grant. */
+    fun availableArtifacts(artifacts: List<BuildArtifact>): List<BuildArtifact> =
+        artifacts.filter { !it.expired }
+
+    fun preferredArtifact(artifacts: List<BuildArtifact>): BuildArtifact? {
+        val usable = availableArtifacts(artifacts)
+        return usable.firstOrNull { it.name.contains("release", ignoreCase = true) && it.name.contains("apk", ignoreCase = true) }
+            ?: usable.firstOrNull { it.name.contains("apk", ignoreCase = true) }
+            ?: usable.firstOrNull { it.name.contains("debug", ignoreCase = true) }
+            ?: usable.firstOrNull()
+    }
+
+    fun artifactStatus(artifact: BuildArtifact): String = when {
+        artifact.expired -> "${artifact.name}: expired"
+        artifact.sizeInBytes <= 0L -> "${artifact.name}: empty"
+        else -> "${artifact.name}: ${formatFileSize(artifact.sizeInBytes)}"
+    }
 
     fun formatFileSize(bytes: Long): String = when {
         bytes >= 1024L * 1024L -> String.format(Locale.US, "%.2f MiB", bytes / (1024.0 * 1024.0))

@@ -21,7 +21,8 @@ test("user and session persistence round trip", () => {
   const user = findUserByEmail("user@example.com");
   assert.ok(user);
   assert.equal(findUserById("user-1").email, "user@example.com");
-  const session = insertSession("hash-abc", "user-1", now, now + 1000);
+  // One hour keeps this persistence assertion independent of test-runner scheduling delays.
+  const session = insertSession("hash-abc", "user-1", now, now + 3_600_000);
   assert.equal(findSessionByHash("hash-abc").user_id, "user-1");
   revokeSession("hash-abc");
   assert.equal(findSessionByHash("hash-abc"), undefined);

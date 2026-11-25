@@ -4,6 +4,11 @@ package com.sikorokoro44.cloudopencode.ui
  * Maps the backend deep-link callback result to a user-facing message.
  */
 object GithubOAuthResult {
+    /** Only the exact deep link declared in the manifest is accepted as a callback. */
+    fun isCallback(scheme: String?, host: String?, path: String?): Boolean =
+        scheme == "cloudopencode" && host == "github" &&
+            (path == "/callback" || path?.startsWith("/callback/") == true)
+
     fun isConnected(status: String?): Boolean = status == "connected"
 
     fun message(status: String?, error: String?): String = when {
