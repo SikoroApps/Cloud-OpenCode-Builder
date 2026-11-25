@@ -1,18 +1,32 @@
+import { Buffer } from "node:buffer";
 import type { FallbackCandidate } from "../types.ts";
 import { loadConfig } from "../config.ts";
 
-export function createOpenCodeProvider(): {
+export interface OpenCodeProviderOptions {
+  apiKey?: string;
+  baseUrl?: string;
+  fetchImpl?: typeof fetch;
+}
+
+export function createOpenCodeProvider(options: OpenCodeProviderOptions = {}): {
   complete(input: { candidate: FallbackCandidate; messages: { role: string; content: string }[]; signal?: AbortSignal }): Promise<{ result: { content: string; finishReason: string } } | { error: { message: string; status?: number; kind?: string } }>;
 } {
   const config = loadConfig();
+  const apiKey = options.apiKey !== undefined ? options.apiKey : config.openCodeApiKey;
+  const baseUrl = options.baseUrl !== undefined ? options.baseUrl : config.openCodeBaseUrl;
+  const fetchImpl = options.fetchImpl || fetch;
+
   return {
     async complete({ candidate, messages, signal }) {
+      if (!apiKey) {
+        return { error: { message: "opencode_api_key_not_configured", status: 401, kind: "unauthorized" } };
+      }
       const prompt = buildPrompt(messages);
-      const response = await fetch(`${config.openCodeBaseUrl}/api/experimental/generate/text`, {
+      const response = await fetchImpl(`${baseUrl}/api/experimental/generate/text`, {
         method: "POST",
         signal,
         headers: {
-          Authorization: `Basic ${Buffer.from(`opencode:${config.openCodeApiKey}`).toString("base64")}`,
+          Authorization: `Basic ${Buffer.from(`opencode:${apiKey}`).toString("base64")}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({

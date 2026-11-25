@@ -1,23 +1,43 @@
 import type { FallbackCandidate } from "../types.ts";
 import { loadConfig } from "../config.ts";
 
-export function createOpenRouterProvider(): {
+export interface OpenRouterProviderOptions {
+  apiKey?: string;
+  appUrl?: string;
+  appName?: string;
+  fetchImpl?: typeof fetch;
+}
+
+export function createOpenRouterProvider(options: OpenRouterProviderOptions = {}): {
   complete(input: { candidate: FallbackCandidate; messages: { role: string; content: string }[]; signal?: AbortSignal }): Promise<{ result: { content: string; finishReason: string } } | { error: { message: string; status?: number; kind?: string } }>;
 } {
   const config = loadConfig();
-  const apiKey = config.openRouterApiKey;
+  const apiKey = options.apiKey !== undefined ? options.apiKey : config.openRouterApiKey;
+  const appUrl = options.appUrl !== undefined ? options.appUrl : config.baseUrl;
+  const appName = options.appName || "Cloud OpenCode Builder";
+  const fetchImpl = options.fetchImpl || fetch;
+
   return {
     async complete({ candidate, messages, signal }) {
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      if (!apiKey) {
+        return { error: { message: "openrouter_api_key_not_configured", status: 401, kind: "unauthorized" } };
+      }
+      const response = await fetchImpl("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         signal,
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
+          // OpenRouter uses these for app attribution and free-model eligibility.
+          "HTTP-Referer": appUrl,
+          "X-Title": appName,
         },
         body: JSON.stringify({
           model: candidate.modelID,
-          messages: messages.map((message) => ({ role: message.role === "assistant" ? "assistant" : message.role === "system" ? "system" : "user", content: message.content })),
+          messages: messages.map((message) => ({
+            role: message.role === "assistant" ? "assistant" : message.role === "system" ? "system" : "user",
+            content: message.content,
+          })),
           max_tokens: 1024,
         }),
       });
