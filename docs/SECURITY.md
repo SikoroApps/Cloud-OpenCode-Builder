@@ -31,6 +31,9 @@
 ## Known follow-on hardening
 
 - Per-IP/per-user rate limiting is not yet implemented for auth, chat, search or generation.
-- A dependency vulnerability audit should run in an environment with registry access.
+- Dependency vulnerability audit is automated on every push and weekly: the backend has zero npm
+  dependencies (`npm audit` verified 0 findings), and all pinned Gradle coordinates are checked
+  against OSV by `scripts/audit-dependencies.mjs`. Dependabot alerts are enabled and dependency
+  updates are proposed weekly. See `docs/MASTER_COMPLETION_TRACKER.md`.
 - Live production secrets, HTTPS hosting and a signed release remain external requirements; see
   `docs/MASTER_COMPLETION_TRACKER.md`.

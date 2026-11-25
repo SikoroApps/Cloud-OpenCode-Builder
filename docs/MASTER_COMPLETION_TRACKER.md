@@ -222,6 +222,15 @@ It remains a debug artifact, not a signed release APK.
 7. **Optional hardening** — request rate limiting and a dependency audit in an environment with
    registry access.
 
+## Production release completion
+
+This section records verified milestones for the production-release stage. Each row is updated only
+after the named evidence exists; blockers remain explicit.
+
+| Milestone | Status | Evidence / blocker |
+| --- | --- | --- |
+| Dependency vulnerability audit | IMPLEMENTED (locally verified; CI pending) | Backend has zero npm dependencies; `npm audit --omit=dev --audit-level=high` reported 0 vulnerabilities on 2026-11-25. `scripts/audit-dependencies.mjs` queried OSV for 14 pinned Gradle coordinates: 0 findings after bumping `org.json:json` from `20240303` to `20260814` (GHSA-ghc9-756g-vrcv) and Kotlin plugin from `2.0.21` to `2.4.21` (GHSA-r937-wjx7-w2jp). GitHub vulnerability alerts enabled; Dependabot config and audit/dependency-graph workflows added. |
+
 ## Next action to reach a production release
 
 Provide the six external items above. Then run the documented sequence in `docs/DEPLOYMENT.md`:
