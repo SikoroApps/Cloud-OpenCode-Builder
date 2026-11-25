@@ -34,6 +34,35 @@ test("readiness output contains only presence checks and blocker codes", () => {
   assert.deepEqual([...readiness.requiredActionsSecrets], [...REQUIRED_ACTIONS_SECRET_NAMES]);
 });
 
+test("readiness rejects an OAuth callback host that differs from the backend host", () => {
+  const readiness = getConfigReadiness(github({
+    redirectUri: "https://oauth.other.example.invalid/api/github/oauth/callback",
+  }), {
+    baseUrl: "https://backend.example.invalid",
+    openRouterApiKeySet: true,
+    openCodeApiKeySet: false,
+  });
+  assert.equal(readiness.githubOAuth.redirectUriMatchesBaseUrl, false);
+  assert.equal(readiness.readyForLiveOAuth, false);
+  assert.equal(readiness.readyForLiveBuilds, false);
+  assert.equal(readiness.blockers.includes("GITHUB_OAUTH_REDIRECT_URI host must match CLOUD_BASE_URL host"), true);
+  assert.equal(JSON.stringify(readiness).includes("oauth.other.example.invalid"), false);
+});
+
+test("readiness rejects a non-mobile OAuth app callback scheme", () => {
+  const readiness = getConfigReadiness(github({
+    appCallbackUrl: "https://evil.example.invalid/callback",
+  }), {
+    baseUrl: "https://backend.example.invalid",
+    openRouterApiKeySet: true,
+    openCodeApiKeySet: false,
+  });
+  assert.equal(readiness.githubOAuth.appCallbackSchemeValid, false);
+  assert.equal(readiness.readyForLiveOAuth, false);
+  assert.equal(readiness.blockers.includes("GITHUB_APP_CALLBACK_URL must use the cloudopencode scheme"), true);
+  assert.equal(JSON.stringify(readiness).includes("evil.example.invalid"), false);
+});
+
 test("readiness reports missing configuration without secret values", () => {
   const readiness = getConfigReadiness(github({
     clientId: "",

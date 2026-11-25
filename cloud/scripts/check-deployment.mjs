@@ -43,6 +43,8 @@ const result = evaluateDeploymentReadiness(readiness, {
   healthUrlConfigured: Boolean(healthUrl),
   healthUrlIsHttps,
   healthStatus,
+  rateLimitEnabled: config.rateLimitEnabled,
+  trustProxy: config.trustProxy,
 });
 
 // Prints checks and blocker codes only. Never prints environment values or secrets.

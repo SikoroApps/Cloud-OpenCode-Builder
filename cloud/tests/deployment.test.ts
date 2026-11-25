@@ -39,6 +39,8 @@ test("deployment readiness reports booleans and blocker codes only", () => {
     healthUrlConfigured: true,
     healthUrlIsHttps: true,
     healthStatus: 200,
+    rateLimitEnabled: true,
+    trustProxy: true,
   });
   assert.equal(ready.readyForDeployment, true);
   assert.deepEqual(ready.blockers, []);
@@ -48,6 +50,9 @@ test("deployment readiness reports booleans and blocker codes only", () => {
   assert.equal(ready.checks.liveAiReady, true);
   assert.equal(ready.checks.healthCheckHttps, true);
   assert.equal(ready.checks.healthCheckOk, true);
+  assert.equal(ready.checks.oauthRedirectMatchesBaseUrl, true);
+  assert.equal(ready.checks.rateLimitingEnabled, true);
+  assert.equal(ready.checks.proxyTrustConfigured, true);
 });
 
 test("deployment readiness reports masked blockers when prerequisites are missing", () => {
@@ -56,19 +61,27 @@ test("deployment readiness reports masked blockers when prerequisites are missin
     healthUrlConfigured: true,
     healthUrlIsHttps: false,
     healthStatus: null,
+    rateLimitEnabled: false,
+    trustProxy: false,
   });
   assert.equal(ready.readyForDeployment, false);
   assert.equal(ready.checks.databaseDirectoryWritable, false);
   assert.equal(ready.checks.httpsBaseUrl, false);
   assert.equal(ready.checks.healthCheckHttps, false);
   assert.equal(ready.checks.healthCheckOk, false);
+  assert.equal(ready.checks.oauthRedirectMatchesBaseUrl, false);
+  assert.equal(ready.checks.rateLimitingEnabled, false);
+  assert.equal(ready.checks.proxyTrustConfigured, false);
   assert.deepEqual(ready.blockers, [
     "database directory is not writable",
     "CLOUD_BASE_URL must be an HTTPS URL",
     "GitHub OAuth configuration is not ready",
+    "GITHUB_OAUTH_REDIRECT_URI host must match CLOUD_BASE_URL host",
     "no AI provider key is configured for live AI file planning",
     "DEPLOYMENT_HEALTH_URL must use https",
     "deployment health check did not return 200",
+    "rate limiting must be enabled in production",
+    "TRUST_PROXY must be 1 behind the HTTPS reverse proxy",
   ]);
   assert.equal(JSON.stringify(ready).includes("client-id"), false);
   assert.equal(JSON.stringify(ready).includes("client-secret"), false);
