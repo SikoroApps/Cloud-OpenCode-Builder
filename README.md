@@ -22,7 +22,16 @@ Free models only. Fallback chain (in priority order):
 5. `openrouter/google/gemma-4-26b-a4b-it:free`
 
 The agent switches to the next available model after eligible provider errors, rate limits or
-exhausted quotas. It avoids infinite retries and verifies availability before claiming it.
+exhausted quotas. It avoids infinite retries and verifies availability before claiming it. Each
+model gets at most one retry, and two failures open a 60-second circuit breaker so a repeatedly
+failing model is skipped until it recovers. Failed models are recorded as failed attempts and are
+never reported as successful fallbacks.
+
+`openrouter/google/gemma-4-26b-a4b-it:free` remains in the five-model free chain but is marked
+**unsuitable for automatic agent/tool-calling work**: a real OpenRouter/OpenCode probe returned
+HTTP `429` with `limit_source: upstream_provider_shared_pool` for both plain text and tool-calling
+requests. The verified free replacement for automatic building is `opencode/big-pickle`, with
+`opencode/deepseek-v4.1-flash-free` and `opencode/flint-40b-free` as verified free alternates.
 
 ## Core features (roadmap)
 

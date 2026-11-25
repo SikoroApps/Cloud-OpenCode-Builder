@@ -29,6 +29,8 @@ export interface AiAttemptResult {
   model: string;
   content: string;
   finishReason: string;
+  status?: number;
+  kind?: string;
 }
 
 export interface AiRunError {
@@ -37,6 +39,14 @@ export interface AiRunError {
   kind?: string;
   attempts: AiAttemptResult[];
 }
+
+export type AiError = {
+  message: string;
+  status?: number;
+  kind?: string;
+  name?: string;
+  attempts?: AiAttemptResult[];
+};
 
 export interface AiRunResult {
   model: string;
