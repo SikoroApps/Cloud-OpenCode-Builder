@@ -14,6 +14,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const gradleFiles = [
   "android/build.gradle.kts",
   "android/app/build.gradle.kts",
+  "android/backend/build.gradle.kts",
 ];
 
 const PLUGIN_COORDINATES = {

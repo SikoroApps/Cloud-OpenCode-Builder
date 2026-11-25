@@ -25,3 +25,5 @@ jobs:
           java-version: '17'
       - name: Submit full Gradle dependency graph for Dependabot alerts
         uses: gradle/actions/dependency-submission@v4
+        with:
+          gradle-version: 8.9
