@@ -24,6 +24,6 @@ jobs:
           distribution: temurin
           java-version: '17'
       - name: Submit full Gradle dependency graph for Dependabot alerts
-        uses: gradle/actions/dependency-submission@v4
+        uses: gradle/actions/dependency-submission@v6
         with:
           build-root-directory: android
