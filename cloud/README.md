@@ -30,8 +30,16 @@ Health check: `GET http://127.0.0.1:8080/health` -> `{"status":"ok"}`.
 | `CLOUD_AI_STUB` | tests only | Deterministic text/image-analysis stub. Never enable in production. |
 | `CLOUD_IMAGE_GENERATION_STUB` | tests only | Deterministic 1×1 PNG image-generation stub. |
 | `CLOUD_WEB_SEARCH_STUB` | tests only | Deterministic search-results stub. |
+| `RATE_LIMIT_ENABLED` | no | Set to `0` only in local tests to disable in-memory limits; defaults to enabled. |
+| `TRUST_PROXY` | no | Set to `1` only when Caddy or a known reverse proxy is the sole public entry point; enables `X-Forwarded-For` for per-client keys. Defaults to off. |
 
 Never put keys in source, Dockerfiles, git, logs or client builds. Supply them as deployment secrets.
+
+Rate limits are dependency-free fixed windows: auth 20/15 min per IP, OAuth start 10/10 min per
+user, chat/search/image analysis 30/min per user, image generation and task creation 20/min per
+user, and all other authenticated API routes 300/min per IP. Responses include `X-RateLimit-*` and
+429 responses include `Retry-After`. In-memory state is per process; a multi-replica deployment
+needs a shared limiter before horizontal scaling.
 
 ## Endpoints
 

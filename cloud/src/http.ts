@@ -61,6 +61,13 @@ import {
 } from "./images.ts";
 import { createWebSearchService, WebSearchError, type WebSearchService } from "./web-search.ts";
 import { cloudTaskDto, isCloudTaskStatus, validateTaskDescription } from "./tasks.ts";
+import {
+  clientIpFromRequest,
+  createFixedWindowRateLimiter,
+  RATE_LIMIT_POLICIES,
+  selectRateLimitPolicy,
+  type RateLimiter,
+} from "./rate-limit.ts";
 
 export interface AuthUser { id: string; email: string }
 
@@ -73,6 +80,9 @@ export interface ApiDependencies {
   imageAnalysisService?: ImageAnalysisService;
   imageGenerationService?: ImageGenerationService;
   webSearchService?: WebSearchService;
+  rateLimiter?: RateLimiter;
+  rateLimitEnabled?: boolean;
+  rateLimitTrustProxy?: boolean;
 }
 
 class ApiRequestError extends Error {
@@ -103,6 +113,9 @@ export function createApiDependencies(config: CloudConfig = loadConfig()): ApiDe
     imageAnalysisService: createImageAnalysisService({ openRouterApiKey: config.openRouterApiKey }),
     imageGenerationService: createImageGenerationService(),
     webSearchService: createWebSearchService(),
+    rateLimiter: config.rateLimitEnabled ? createFixedWindowRateLimiter() : undefined,
+    rateLimitEnabled: config.rateLimitEnabled,
+    rateLimitTrustProxy: config.trustProxy,
   };
 }
 
@@ -139,6 +152,7 @@ async function handleApiRequestInner(
     return;
   }
   if (req.method === "POST" && path === "/api/auth/register") {
+    if (!applyRateLimit(req, res, deps, RATE_LIMIT_POLICIES.auth, null)) return;
     const body = await readJson(req);
     const email = String(body?.email || "");
     const password = String(body?.password || "");
@@ -163,6 +177,7 @@ async function handleApiRequestInner(
     return;
   }
   if (req.method === "POST" && path === "/api/auth/login") {
+    if (!applyRateLimit(req, res, deps, RATE_LIMIT_POLICIES.auth, null)) return;
     const body = await readJson(req);
     const email = String(body?.email || "");
     const password = String(body?.password || "");
@@ -183,6 +198,12 @@ async function handleApiRequestInner(
   const browserArtifactDownload = req.method === "GET" && path === "/api/projects/build/artifact" && url.searchParams.has("grant");
   if (!auth.userId && !browserArtifactDownload) {
     sendJson(res, 401, { error: "unauthorized" });
+    return;
+  }
+  if (
+    path.startsWith("/api/") &&
+    !applyRateLimit(req, res, deps, selectRateLimitPolicy(path, req.method), auth.userId)
+  ) {
     return;
   }
   if (req.method === "GET" && path === "/api/config/readiness") {
@@ -1279,6 +1300,27 @@ function decodePathSegment(raw: string): string {
   } catch {
     throw new ApiRequestError(400, "invalid_request");
   }
+}
+
+function applyRateLimit(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: ApiDependencies,
+  policy: { name: string; scope: "ip" | "user"; limit: number; windowMs: number },
+  userId: string | null,
+): boolean {
+  if (deps.rateLimitEnabled === false || !deps.rateLimiter) return true;
+  const identity = policy.scope === "user" && userId
+    ? `user:${userId}`
+    : `ip:${clientIpFromRequest(req, deps.rateLimitTrustProxy === true)}`;
+  const decision = deps.rateLimiter.check(`${policy.name}:${identity}`, policy);
+  res.setHeader("X-RateLimit-Limit", String(decision.limit));
+  res.setHeader("X-RateLimit-Remaining", String(decision.remaining));
+  res.setHeader("X-RateLimit-Reset", String(Math.ceil(Date.now() / 1000) + decision.windowSeconds));
+  if (decision.allowed) return true;
+  res.setHeader("Retry-After", String(decision.retryAfterSeconds));
+  sendJson(res, 429, { error: "rate_limited", retryAfterSeconds: decision.retryAfterSeconds });
+  return false;
 }
 
 function optionalProjectId(userId: string, raw: unknown): string | null {

@@ -8,6 +8,8 @@ export interface CloudConfig {
   openCodeApiKey: string;
   openRouterApiKey: string;
   github: GithubConfig;
+  rateLimitEnabled: boolean;
+  trustProxy: boolean;
 }
 
 export interface GithubConfig {
@@ -65,5 +67,15 @@ export function loadConfig(): CloudConfig {
   if (!/^https?:\/\//.test(openCodeBaseUrl)) throw new Error("OPENCODE_BASE_URL must be an absolute http(s) URL");
   if (!/^https:\/\//.test(github.apiBaseUrl)) throw new Error("GITHUB_API_BASE_URL must use https");
   if (!/^https:\/\//.test(github.authBaseUrl)) throw new Error("GITHUB_AUTH_BASE_URL must use https");
-  return { port, host, baseUrl, openCodeBaseUrl, openCodeApiKey, openRouterApiKey, github };
+  return {
+    port,
+    host,
+    baseUrl,
+    openCodeBaseUrl,
+    openCodeApiKey,
+    openRouterApiKey,
+    github,
+    rateLimitEnabled: (process.env.RATE_LIMIT_ENABLED ?? "1") !== "0",
+    trustProxy: (process.env.TRUST_PROXY ?? "0") === "1",
+  };
 }

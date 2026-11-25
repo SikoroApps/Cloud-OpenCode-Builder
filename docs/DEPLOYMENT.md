@@ -83,6 +83,8 @@ A host, DNS domain and configured secrets are still required, and no credential 
 | `GITHUB_TOKEN_ENCRYPTION_KEY` | Base64 of 32 random bytes for AES-256-GCM token storage. |
 | `GITHUB_APP_CALLBACK_URL` | Mobile deep link used after OAuth redirects. |
 | `OPENCODE_API_KEY`, `OPENROUTER_API_KEY` | At least one is required for live AI file planning. |
+| `RATE_LIMIT_ENABLED` | Defaults to `1`; set to `0` only for isolated local tests. |
+| `TRUST_PROXY` | Set to `1` when Caddy is the sole public entry point, so per-client limits use `X-Forwarded-For`; otherwise spoofable proxy headers are ignored. |
 
 Repository Actions secrets for generated Android workflows are listed in
 `docs/SECURITY.md` and `docs/PHASE_4.md`. Their values are never read by this backend.
