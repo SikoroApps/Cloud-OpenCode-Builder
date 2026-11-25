@@ -51,6 +51,7 @@ test("deployment readiness reports booleans and blocker codes only", () => {
   assert.equal(ready.checks.healthCheckHttps, true);
   assert.equal(ready.checks.healthCheckOk, true);
   assert.equal(ready.checks.oauthRedirectMatchesBaseUrl, true);
+  assert.equal(ready.checks.oauthRedirectPathValid, true);
   assert.equal(ready.checks.rateLimitingEnabled, true);
   assert.equal(ready.checks.proxyTrustConfigured, true);
 });
@@ -70,6 +71,7 @@ test("deployment readiness reports masked blockers when prerequisites are missin
   assert.equal(ready.checks.healthCheckHttps, false);
   assert.equal(ready.checks.healthCheckOk, false);
   assert.equal(ready.checks.oauthRedirectMatchesBaseUrl, false);
+  assert.equal(ready.checks.oauthRedirectPathValid, false);
   assert.equal(ready.checks.rateLimitingEnabled, false);
   assert.equal(ready.checks.proxyTrustConfigured, false);
   assert.deepEqual(ready.blockers, [

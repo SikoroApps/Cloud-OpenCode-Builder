@@ -21,6 +21,7 @@ export interface ConfigReadiness {
     clientSecretSet: boolean;
     redirectUriHttps: boolean;
     redirectUriMatchesBaseUrl: boolean;
+    redirectUriPathValid: boolean;
     encryptionKeyValid: boolean;
     appCallbackSet: boolean;
     appCallbackSchemeValid: boolean;
@@ -64,6 +65,12 @@ export function getConfigReadiness(github: GithubConfig, cloud: ReadinessCloudCo
   const baseHost = hostname(cloud.baseUrl);
   const redirectHost = hostname(github.redirectUri);
   const redirectUriMatchesBaseUrl = Boolean(baseHost && redirectHost && baseHost === redirectHost);
+  let redirectUriPathValid = false;
+  try {
+    redirectUriPathValid = new URL(github.redirectUri).pathname === "/api/github/oauth/callback";
+  } catch {
+    redirectUriPathValid = false;
+  }
   let appCallbackSchemeValid = false;
   try {
     appCallbackSchemeValid = new URL(github.appCallbackUrl).protocol === "cloudopencode:";
@@ -77,6 +84,9 @@ export function getConfigReadiness(github: GithubConfig, cloud: ReadinessCloudCo
   if (!redirectUriHttps) blockers.push("GITHUB_OAUTH_REDIRECT_URI must be an HTTPS URL");
   if (redirectUriHttps && baseUrlHttps && !redirectUriMatchesBaseUrl) {
     blockers.push("GITHUB_OAUTH_REDIRECT_URI host must match CLOUD_BASE_URL host");
+  }
+  if (redirectUriHttps && !redirectUriPathValid) {
+    blockers.push("GITHUB_OAUTH_REDIRECT_URI path must be /api/github/oauth/callback");
   }
   if (!encryptionKeyValid) blockers.push("GITHUB_TOKEN_ENCRYPTION_KEY must decode to 32 bytes");
   if (!appCallbackSchemeValid) blockers.push("GITHUB_APP_CALLBACK_URL must use the cloudopencode scheme");
@@ -92,6 +102,7 @@ export function getConfigReadiness(github: GithubConfig, cloud: ReadinessCloudCo
       clientSecretSet,
       redirectUriHttps,
       redirectUriMatchesBaseUrl,
+      redirectUriPathValid,
       encryptionKeyValid,
       appCallbackSet,
       appCallbackSchemeValid,
@@ -111,8 +122,8 @@ export function getConfigReadiness(github: GithubConfig, cloud: ReadinessCloudCo
       "Confirm a real Android device is connected before claiming device installation or launch.",
     ],
     blockers,
-    readyForLiveOAuth: configured && baseUrlHttps && redirectUriMatchesBaseUrl && appCallbackSchemeValid,
+    readyForLiveOAuth: configured && baseUrlHttps && redirectUriMatchesBaseUrl && redirectUriPathValid && appCallbackSchemeValid,
     readyForLiveAiEditing,
-    readyForLiveBuilds: configured && baseUrlHttps && redirectUriMatchesBaseUrl && appCallbackSchemeValid,
+    readyForLiveBuilds: configured && baseUrlHttps && redirectUriMatchesBaseUrl && redirectUriPathValid && appCallbackSchemeValid,
   };
 }

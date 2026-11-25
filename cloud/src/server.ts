@@ -1,10 +1,13 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { validateCloudConfig } from "./config-validation.ts";
 import { loadConfig } from "./config.ts";
 import { createApiDependencies, createApiHandler } from "./http.ts";
 
 console.log("cloud backend module loaded");
 export async function startCloudServer(): Promise<void> {
   const config = loadConfig();
+  const configError = validateCloudConfig(config);
+  if (configError) throw new Error(`invalid_cloud_config: ${configError}`);
   const apiHandler = createApiHandler(createApiDependencies(config));
   console.log(`starting cloud backend on ${config.host}:${config.port}`);
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {

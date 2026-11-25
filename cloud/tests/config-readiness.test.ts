@@ -49,6 +49,21 @@ test("readiness rejects an OAuth callback host that differs from the backend hos
   assert.equal(JSON.stringify(readiness).includes("oauth.other.example.invalid"), false);
 });
 
+test("readiness rejects an incorrect OAuth callback path", () => {
+  const readiness = getConfigReadiness(github({
+    redirectUri: "https://backend.example.invalid/wrong/callback",
+  }), {
+    baseUrl: "https://backend.example.invalid",
+    openRouterApiKeySet: true,
+    openCodeApiKeySet: false,
+  });
+  assert.equal(readiness.githubOAuth.redirectUriPathValid, false);
+  assert.equal(readiness.readyForLiveOAuth, false);
+  assert.equal(readiness.readyForLiveBuilds, false);
+  assert.equal(readiness.blockers.includes("GITHUB_OAUTH_REDIRECT_URI path must be /api/github/oauth/callback"), true);
+  assert.equal(JSON.stringify(readiness).includes("wrong/callback"), false);
+});
+
 test("readiness rejects a non-mobile OAuth app callback scheme", () => {
   const readiness = getConfigReadiness(github({
     appCallbackUrl: "https://evil.example.invalid/callback",

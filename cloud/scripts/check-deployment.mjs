@@ -1,5 +1,6 @@
 import { accessSync, constants } from "node:fs";
 import { dirname } from "node:path";
+import { validateCloudConfig } from "../src/config-validation.ts";
 import { loadConfig } from "../src/config.ts";
 import { evaluateDeploymentReadiness } from "../src/deployment.ts";
 import { getConfigReadiness } from "../src/readiness.ts";
@@ -47,6 +48,12 @@ const result = evaluateDeploymentReadiness(readiness, {
   trustProxy: config.trustProxy,
 });
 
+const configValidationError = validateCloudConfig(config);
+if (configValidationError && !result.blockers.includes(configValidationError)) {
+  result.blockers.push(configValidationError);
+  result.readyForDeployment = false;
+}
+
 // Prints checks and blocker codes only. Never prints environment values or secrets.
-console.log(JSON.stringify({ readiness, deployment: result }, null, 2));
+console.log(JSON.stringify({ readiness, deployment: result, configValidationError }, null, 2));
 if (strict && !result.readyForDeployment) process.exitCode = 1;

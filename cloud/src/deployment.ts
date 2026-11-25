@@ -15,6 +15,7 @@ export interface DeploymentPreflightResult {
     httpsBaseUrl: boolean;
     githubOAuthReady: boolean;
     oauthRedirectMatchesBaseUrl: boolean;
+    oauthRedirectPathValid: boolean;
     liveAiReady: boolean;
     healthCheckHttps: boolean;
     healthCheckOk: boolean;
@@ -38,6 +39,7 @@ export function evaluateDeploymentReadiness(
     httpsBaseUrl: readiness.cloudBackend.baseUrlHttps,
     githubOAuthReady: readiness.readyForLiveOAuth,
     oauthRedirectMatchesBaseUrl: readiness.githubOAuth.redirectUriMatchesBaseUrl,
+    oauthRedirectPathValid: readiness.githubOAuth.redirectUriPathValid,
     liveAiReady: readiness.readyForLiveAiEditing,
     healthCheckHttps: input.healthUrlConfigured && input.healthUrlIsHttps,
     healthCheckOk: input.healthStatus === 200,
@@ -50,6 +52,9 @@ export function evaluateDeploymentReadiness(
   if (!checks.githubOAuthReady) blockers.push("GitHub OAuth configuration is not ready");
   if (!checks.oauthRedirectMatchesBaseUrl) {
     blockers.push("GITHUB_OAUTH_REDIRECT_URI host must match CLOUD_BASE_URL host");
+  }
+  if (!checks.oauthRedirectPathValid && readiness.githubOAuth.redirectUriHttps) {
+    blockers.push("GITHUB_OAUTH_REDIRECT_URI path must be /api/github/oauth/callback");
   }
   if (!checks.liveAiReady) blockers.push("no AI provider key is configured for live AI file planning");
   if (!input.healthUrlConfigured) blockers.push("DEPLOYMENT_HEALTH_URL is not configured");
