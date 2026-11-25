@@ -59,6 +59,7 @@ import {
   type ImageGenerationSize,
 } from "./images.ts";
 import { createWebSearchService, WebSearchError, type WebSearchService } from "./web-search.ts";
+import { androidScaffold, launcherIconFiles, normalizeAppName } from "./scaffold.ts";
 import { cloudTaskDto, isCloudTaskStatus, validateTaskDescription } from "./tasks.ts";
 import {
   clientIpFromRequest,
@@ -1098,6 +1099,47 @@ async function handleApiRequestInner(
     }
     return;
   }
+  if (req.method === "POST" && path === "/api/projects/scaffold") {
+    try {
+      const { project } = requireSelectedProject(auth.userId, deps);
+      const body = await readJson(req);
+      let appName: string;
+      let scaffold: ReturnType<typeof androidScaffold>;
+      try {
+        appName = normalizeAppName(body?.appName || "Cloud App");
+        scaffold = androidScaffold({ appName, packageName: body?.packageName });
+      } catch {
+        throw new ApiRequestError(400, "invalid_request");
+      }
+      // Templates are generated server-side, so their fixed paths are trusted.
+      const allFiles = scaffold.files;
+      const paths = Object.keys(allFiles);
+      const projectId = String(project.id);
+      const existing = paths.filter((filePath) => Boolean(findProjectFile(projectId, filePath)));
+      if (existing.length && body?.replace !== true) {
+        throw new ApiRequestError(409, "scaffold_exists");
+      }
+      const now = Date.now();
+      for (const filePath of paths) {
+        saveProjectFile({
+          projectId,
+          path: filePath,
+          content: allFiles[filePath],
+          now,
+          source: "scaffold",
+        });
+      }
+      sendJson(res, 200, {
+        appName: scaffold.appName,
+        packageName: scaffold.packageName,
+        files: paths,
+        message: "Android Compose starter project saved; commit it before building",
+      });
+    } catch (error) {
+      sendGithubError(res, error);
+    }
+    return;
+  }
   if (req.method === "POST" && path === "/api/projects/launcher-icon") {
     try {
       const { project } = requireSelectedProject(auth.userId, deps);
@@ -1582,39 +1624,6 @@ function signedReleaseWorkflow(): string {
     "          path: apk-release-evidence.txt",
     "",
   ].join("\n");
-}
-
-function launcherIconFiles(): Record<string, string> {
-  return {
-    "app/src/main/res/values/ic_launcher_background.xml": [
-      "<?xml version=\"1.0\" encoding=\"utf-8\"?>",
-      "<resources>",
-      "    <color name=\"ic_launcher_background\">#FF1565C0</color>",
-      "</resources>",
-      "",
-    ].join("\n"),
-    "app/src/main/res/drawable/ic_launcher_foreground.xml": [
-      "<?xml version=\"1.0\" encoding=\"utf-8\"?>",
-      "<vector xmlns:android=\"http://schemas.android.com/apk/res/android\"",
-      "    android:width=\"108dp\"",
-      "    android:height=\"108dp\"",
-      "    android:viewportWidth=\"108\"",
-      "    android:viewportHeight=\"108\">",
-      "    <path",
-      "        android:fillColor=\"#FFFFFFFF\"",
-      "        android:pathData=\"M54,30 L74,42 L74,66 L54,78 L34,66 L34,42 Z\" />",
-      "</vector>",
-      "",
-    ].join("\n"),
-    "app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml": [
-      "<?xml version=\"1.0\" encoding=\"utf-8\"?>",
-      "<adaptive-icon xmlns:android=\"http://schemas.android.com/apk/res/android\">",
-      "    <background android:drawable=\"@color/ic_launcher_background\" />",
-      "    <foreground android:drawable=\"@drawable/ic_launcher_foreground\" />",
-      "</adaptive-icon>",
-      "",
-    ].join("\n"),
-  };
 }
 
 function fileDto(file: any): Record<string, unknown> {

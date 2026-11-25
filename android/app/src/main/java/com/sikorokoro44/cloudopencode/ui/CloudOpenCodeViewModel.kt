@@ -234,9 +234,9 @@ class CloudOpenCodeViewModel(
                 succeed("Authenticated")
                 refreshAll(token.token)
             }.onFailure { error ->
-                report(if (register) "Registration failed" else "Sign in failed", error) {
+                report(if (register) "Registration failed" else "Sign in failed", error, retry = {
                     authenticate(email, password, register)
-                }
+                })
             }
         }
     }
@@ -342,7 +342,7 @@ class CloudOpenCodeViewModel(
                 }
                 succeed("Response received")
             }.onFailure { error ->
-                report("Chat failed", error) { sendChatMessage(token, sessionKey, content, webSearch) }
+                report("Chat failed", error, retry = { sendChatMessage(token, sessionKey, content, webSearch) })
             }
         }
     }
@@ -404,7 +404,7 @@ class CloudOpenCodeViewModel(
                     succeed("Repository created: ${repo.fullName}")
                     fetchGithub(token)
                 }.onFailure { error ->
-                    report("Repository creation failed", error) { createRepository() }
+                    report("Repository creation failed", error, retry = { createRepository() })
                 }
             _state.update { it.copy(loading = false) }
         }
@@ -420,7 +420,7 @@ class CloudOpenCodeViewModel(
                 fetchCommits(token)
                 fetchBuilds(token)
             }.onFailure { error ->
-                report("Project selection failed", error) { selectRepository(fullName) }
+                report("Project selection failed", error, retry = { selectRepository(fullName) })
             }
             _state.update { it.copy(loading = false) }
         }
@@ -470,7 +470,7 @@ class CloudOpenCodeViewModel(
             client.saveProjectFile(token, path, draft).onSuccess { file ->
                 succeed("Saved ${file.path}")
                 fetchFiles(token)
-            }.onFailure { error -> report("File save failed", error) { saveSelectedFile() } }
+            }.onFailure { error -> report("File save failed", error, retry = { saveSelectedFile() } })
             _state.update { it.copy(loading = false) }
         }
     }
@@ -487,7 +487,7 @@ class CloudOpenCodeViewModel(
             client.aiEditFiles(token, instruction).onSuccess { result ->
                 succeed("AI edited ${result.applied.size} file(s) with ${result.model}")
                 fetchFiles(token)
-            }.onFailure { error -> report("AI file edit failed", error) { aiEditFiles() } }
+            }.onFailure { error -> report("AI file edit failed", error, retry = { aiEditFiles() } })
             _state.update { it.copy(loading = false) }
         }
     }
@@ -501,7 +501,7 @@ class CloudOpenCodeViewModel(
                 succeed("Commit ${result.commitId}: ${result.status}")
                 fetchFiles(token)
                 fetchCommits(token)
-            }.onFailure { error -> report("Commit failed", error) { commitProject() } }
+            }.onFailure { error -> report("Commit failed", error, retry = { commitProject() } })
             _state.update { it.copy(loading = false) }
         }
     }
@@ -553,7 +553,9 @@ class CloudOpenCodeViewModel(
                 fetchBuilds(token)
                 pollBuilds()
             }.onFailure { error ->
-                report("Build start failed", error) { startBuildWith(workflowPath, ref) }
+                report("Build start failed", error, retry = {
+                    startBuildWith(workflowPath, ref)
+                })
             }
             _state.update { it.copy(loading = false) }
         }
@@ -598,7 +600,7 @@ class CloudOpenCodeViewModel(
             client.refreshBuild(token, buildId).onSuccess { build ->
                 succeed("Build ${build.id}: ${build.status} ${build.conclusion ?: ""}")
                 fetchBuilds(token)
-            }.onFailure { error -> report("Build refresh failed", error) { refreshBuild(buildId) } }
+            }.onFailure { error -> report("Build refresh failed", error, retry = { refreshBuild(buildId) } })
         }
     }
 
@@ -621,7 +623,7 @@ class CloudOpenCodeViewModel(
                 }
                 _state.update { it.copy(buildLogs = text, buildLogSummary = logs) }
                 succeed("Loaded logs for $buildId")
-            }.onFailure { error -> report("Build logs unavailable", error) { loadBuildLogs(buildId) } }
+            }.onFailure { error -> report("Build logs unavailable", error, retry = { loadBuildLogs(buildId) } })
         }
     }
 
