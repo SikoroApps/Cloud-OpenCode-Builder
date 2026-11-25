@@ -27,13 +27,13 @@ function githubConfig(configured = true): GithubConfig {
   };
 }
 
-function mockService(): GithubService {
+function mockService(scope = "public_repo workflow"): GithubService {
   return {
     authorizationUrl(state: string) {
       return `https://github.example.invalid/login/oauth/authorize?state=${encodeURIComponent(state)}`;
     },
     async exchangeCode() {
-      return { accessToken: "gh-token-do-not-expose", scope: "public_repo workflow", tokenType: "bearer" };
+      return { accessToken: "gh-token-do-not-expose", scope, tokenType: "bearer" };
     },
     async fetchIdentity() {
       return { id: 42, login: "octocat" };
@@ -78,11 +78,11 @@ function mockService(): GithubService {
   };
 }
 
-function deps(configured = true): ApiDependencies {
+function deps(configured = true, scope = "public_repo workflow"): ApiDependencies {
   const aiFilePlanner: AiFilePlanner = async () => ({ model: "mock", operations: [] });
   return {
     githubConfig: githubConfig(configured),
-    githubService: mockService(),
+    githubService: mockService(scope),
     aiFilePlanner,
   };
 }
@@ -138,6 +138,23 @@ test("OAuth state is single-use and a replayed callback is rejected", async () =
     const status = await fetch(`${server.baseUrl}/api/github/status`, { headers: auth });
     assert.equal(status.status, 200);
     assert.equal(JSON.stringify(await status.json()).includes("gh-token-do-not-expose"), false);
+  } finally {
+    await server.close();
+  }
+});
+
+test("a token without required repository/workflow scopes is revoked and not stored", async () => {
+  const server = await startServer(deps(true, "read:user"));
+  try {
+    const auth = await register(server.baseUrl);
+    const state = await beginState(server.baseUrl, auth);
+    const callback = await fetch(`${server.baseUrl}/api/github/oauth/callback?code=abc&state=${state}`, { redirect: "manual" });
+    assert.equal(callback.status, 302);
+    assert.equal(callbackError(callback.headers.get("location") || ""), "insufficient_scopes");
+
+    const status = await fetch(`${server.baseUrl}/api/github/status`, { headers: auth });
+    assert.equal(status.status, 200);
+    assert.equal((await status.json() as any).connected, false);
   } finally {
     await server.close();
   }

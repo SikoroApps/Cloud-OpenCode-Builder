@@ -39,7 +39,7 @@ import {
 } from "./db.ts";
 import { loadConfig, type CloudConfig, type GithubConfig } from "./config.ts";
 import { getConfigReadiness, type ReadinessCloudContext } from "./readiness.ts";
-import { createGithubService, decryptToken, encryptToken, isGithubConfigured, type GithubService } from "./github.ts";
+import { createGithubService, decryptToken, encryptToken, hasRequiredGithubScopes, isGithubConfigured, type GithubService } from "./github.ts";
 import {
   createDefaultAiFilePlanner,
   validateFilePath,
@@ -1630,6 +1630,10 @@ function handleGithubCallback(url: URL, res: ServerResponse, deps: ApiDependenci
   deps.githubService.exchangeCode(code)
     .then((exchange) => deps.githubService.fetchIdentity(exchange.accessToken).then((identity) => ({ exchange, identity })))
     .then(({ exchange, identity }) => {
+      if (!hasRequiredGithubScopes(exchange.scope)) {
+        deps.githubService.revokeToken(exchange.accessToken).catch(() => false).finally(() => deny("insufficient_scopes"));
+        return;
+      }
       const encrypted = encryptToken(exchange.accessToken, deps.githubConfig.tokenEncryptionKey!);
       saveGithubConnection({
         userId: String(stored.user_id),

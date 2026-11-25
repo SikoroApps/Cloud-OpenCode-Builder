@@ -267,7 +267,9 @@ Only now perform the live step:
    `public_repo` and `workflow`.
 5. Click **Authorize**.
 6. GitHub redirects back to the backend callback. The backend exchanges the one-time code
-   server-side, encrypts the token and redirects to the app callback with a safe status.
+   server-side, verifies that both `public_repo` and `workflow` were actually granted, encrypts the
+   token and redirects to the app callback with a safe status. A reduced-scope token is revoked and
+   rejected with `insufficient_scopes`.
 7. Run the status check in section 6.4 again.
 
 OAuth is live-verified only when:

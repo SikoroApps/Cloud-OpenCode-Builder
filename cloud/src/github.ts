@@ -129,6 +129,12 @@ export class GithubServiceError extends Error {
 }
 
 export const GITHUB_OAUTH_SCOPES = "public_repo workflow";
+const REQUIRED_GITHUB_OAUTH_SCOPES = ["public_repo", "workflow"];
+
+export function hasRequiredGithubScopes(scope: string): boolean {
+  const granted = new Set(scope.split(/\s+/).filter(Boolean));
+  return REQUIRED_GITHUB_OAUTH_SCOPES.every((required) => granted.has(required));
+}
 
 export function isGithubConfigured(config: GithubConfig): boolean {
   return Boolean(

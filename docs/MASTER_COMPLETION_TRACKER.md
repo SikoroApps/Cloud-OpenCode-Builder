@@ -1,6 +1,6 @@
 # Master completion tracker
 
-Last updated: 2026-11-24
+Last updated: 2026-11-25
 
 This is the single persistent status record for Phases 1–8. It records what is implemented, what was
 actually verified, and what remains externally blocked. Historical phase documents and CI run IDs are
@@ -231,6 +231,7 @@ after the named evidence exists; blockers remain explicit.
 | --- | --- | --- |
 | Dependency vulnerability audit | IMPLEMENTED (locally verified; CI confirmed) | Backend has zero npm dependencies; `npm audit --omit=dev --audit-level=high` reported 0 vulnerabilities on 2026-11-25. `scripts/audit-dependencies.mjs` queried OSV for 14 pinned Gradle coordinates: 0 findings after bumping `org.json:json` from `20240303` to `20260814` (GHSA-ghc9-756g-vrcv) and Kotlin plugin from `2.0.21` to `2.4.21` (GHSA-r937-wjx7-w2jp). GitHub vulnerability alerts enabled. CI: Dependency audit `45515748155` and Android CI `45517043317` succeeded on `79828dc`; dependency-graph workflow needed `build-root-directory: android` and must pass again after that fix. |
 | API rate limiting and abuse protection | IMPLEMENTED (locally verified; CI pending) | Dependency-free fixed-window limiter added for auth, OAuth start, chat/search/image analysis, image generation/tasks and general API traffic; proxy headers honoured only with `TRUST_PROXY=1`; 429 + `Retry-After` and `X-RateLimit-*` headers. New unit/HTTP tests brought the local suite to **79 passed, 0 failed**. |
+| GitHub OAuth and repository permission review | IMPLEMENTED (live **BLOCKED**) | Reviewed one-time hashed state, 10-minute expiry, token exchange/encryption/revocation, repo permission checks and per-user project scoping. Fixed a real gap: the callback now verifies that `public_repo` and `workflow` were granted, revokes and rejects reduced-scope tokens, and a regression test covers it. Local suite now **80 passed, 0 failed**. Live browser consent still requires an OAuth App and HTTPS deployment. |
 
 ## Next action to reach a production release
 
