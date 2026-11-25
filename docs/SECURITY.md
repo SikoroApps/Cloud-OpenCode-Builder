@@ -14,7 +14,8 @@
 
 - GitHub OAuth uses one-time hashed state with a 10-minute expiry; tokens are exchanged server-side,
   encrypted with AES-256-GCM and never returned to Android.
-- APK artifact downloads use a 10-minute, single-use, hash-only grant. Authenticated artifact access
+- APK artifact downloads use a 10-minute, single-use, hash-only grant, consumed atomically with one
+  `DELETE ... RETURNING` so concurrent replays cannot both succeed. Authenticated artifact access
   still checks build ownership and successful conclusion.
 - Project file editing rejects protected paths (`.env*`, `.github/*`, Gradle/keystore properties,
   keystores, certificates and Firebase config) and secret-bearing content.
@@ -39,8 +40,9 @@
 - `X-Forwarded-For` is honoured only when `TRUST_PROXY=1`; direct backend access must remain bound
   to loopback behind Caddy. Horizontal scaling requires a shared limiter before it can be called
   production-safe.
-- Five new tests cover window resets, key bounds, proxy handling, policy selection and real HTTP
-  429 headers; the full backend suite passed 79/79 locally.
+- Five tests cover window resets, key bounds, proxy handling, policy selection and real HTTP
+  429 headers; the OAuth callback is rate-limited separately from OAuth start. The full backend
+  suite passed **95/95** locally and in CI on `73d4289`.
 
 ## Dependency audit
 

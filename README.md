@@ -11,6 +11,22 @@ download signed APKs. Cloud tasks continue running even when the user's phone di
 - AI model access uses free models only, with an automatic fallback chain.
 - Android targets Android 8 (API 26) and later.
 
+## Current verification checkpoint
+
+- Source HEAD: `73d4289`; every workflow below is green on this commit.
+- `Android CI` run `45622989945`: unit tests, lint, debug APK, API 35 emulator smoke test and
+  HTTPS backend integration all passed.
+- `Cloud Backend CI` run `45622989755`: **95 tests passed, 0 failed**.
+- `Publish backend image` `45622989500`, `Dependency audit` `45622989569` and
+  `Submit dependency graph` `45622989468` all succeeded.
+- Debug APK delivery was re-verified end-to-end on this HEAD: artifact `15027061074`
+  (`cloud-opencode-debug`), `app-debug.apk` **10,333,811 bytes**, SHA-256
+  `6b65de0f61e50e30a342cb006e0f76232402a9d587d3e56af0b26abcfebccc71`. All 20 delivery checks
+  passed, including download without an `Authorization` header and a rejected single-use grant
+  replay (403).
+- That artifact is a **debug** APK, not a signed production release. Signed release remains gated
+  on four signing secrets plus an HTTPS `CLOUD_BASE_URL`, as described below.
+
 ## AI model system
 
 Free models only. Fallback chain (in priority order):
@@ -22,7 +38,8 @@ Free models only. Fallback chain (in priority order):
 5. `openrouter/google/gemma-4-26b-a4b-it:free`
 
 The agent switches to the next available model after eligible provider errors, rate limits or
-exhausted quotas. It avoids infinite retries and verifies availability before claiming it.
+exhausted quotas, with bounded per-attempt timeouts and exponential backoff. It avoids infinite
+retries; availability is discovered by attempting the next model in order.
 
 ## Core features (roadmap)
 
@@ -130,13 +147,14 @@ the APK artifact automatically, creates a 10-minute single-use browser-downloada
 and displays build status, APK filename, size, expiry, and SHA-256. The GitHub tab starts OAuth and
 the app now handles the `cloudopencode://github/callback` deep link to refresh connection state.
 
-**APK delivery is live-verified** on implementation commit `b06911a` against `Android CI` run
-`45600319235` (all jobs green). The backend created a grant link for artifact `15015027414`
+**APK delivery is live-verified** on the current HEAD `73d4289` against `Android CI` run
+`45622989945` (all jobs green). The backend created a grant link for artifact `15027061074`
 (`cloud-opencode-debug`) and the link was downloaded **without any Authorization header**. The
-downloaded `app-debug.apk` is **10,251,891 bytes** with SHA-256
-`c0c9322b810ced52b98b813a427aec8b011ed013f9c133aed2ecf1e0228c69ae`; the checksum endpoint returned
+downloaded `app-debug.apk` is **10,333,811 bytes** with SHA-256
+`6b65de0f61e50e30a342cb006e0f76232402a9d587d3e56af0b26abcfebccc71`; the checksum endpoint returned
 the same value, the response used `Content-Type: application/vnd.android.package-archive`, the grant
-was single-use, and all 20 delivery checks passed. This is a debug APK, not a signed release.
+was single-use, and all 20 delivery checks passed. The same flow was first verified on `b06911a`
+(run `45600319235`, SHA-256 `c0c9322b...`). This is a debug APK, not a signed release.
 
 The signed release workflow (`.github/workflows/android-release.yml`) is implemented and gated on
 `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`,
@@ -160,12 +178,8 @@ checkpoint:
   search-grounded chat with citations, and SQLite-backed tasks that survive backend restarts.
   **Live verified**. See `docs/PHASE_8.md`.
 
-Backend suite after these phases: **74 tests passed, 0 failed**. Latest verified source checkpoint
-`a0d6b21` is green: `Cloud Backend CI` `45510042756` (74/74 tests), `Android CI` `45510042640`
-(unit tests, lint, debug APK, API 35 emulator smoke, and an HTTPS integration test that now exercises
-image upload/list/analysis, generation, search and the task lifecycle) and `Publish backend image`
-`45510042718` all succeeded. The downloaded debug APK SHA-256 is
-`58c32b837915ebb8c0eff6e9ac0d33d661543a50ffd4f7d9661efdaf720437a8` (debug only). The authoritative
-status and remaining external blockers are in `docs/MASTER_COMPLETION_TRACKER.md`. Production
-release gates (deployed HTTPS backend, real GitHub OAuth consent, signing secrets, signed APK and
-physical device) are still outstanding.
+The backend suite now contains **95 passing tests, 0 failed** (see the current checkpoint above).
+The HTTPS integration test exercises image upload/list/analysis, generation, search and the task
+lifecycle in addition to APK delivery. The authoritative status and remaining external blockers are
+in `docs/MASTER_COMPLETION_TRACKER.md`. Production release gates (deployed HTTPS backend, real
+GitHub OAuth consent, signing secrets, signed APK and physical device) are still outstanding.

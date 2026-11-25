@@ -140,8 +140,12 @@ try {
   check("unauthenticated request without grant is rejected", noGrantResponse.status === 401, `status=${noGrantResponse.status}`);
 
   const downloadResponse = await fetch(link.url);
+  if (downloadResponse.status !== 200) {
+    check("browser download needs no Authorization header", false,
+      `status=${downloadResponse.status} body=${JSON.stringify(await downloadResponse.text())}`);
+  }
   const apkBytes = Buffer.from(await downloadResponse.arrayBuffer());
-  check("browser download needs no Authorization header", downloadResponse.status === 200, `status=${downloadResponse.status}`);
+  check("browser download needs no Authorization header", true);
   check("content type is APK", downloadResponse.headers.get("content-type") === "application/vnd.android.package-archive", String(downloadResponse.headers.get("content-type")));
   check("content disposition is attachment", /attachment; filename="[^"]+\.apk"/.test(String(downloadResponse.headers.get("content-disposition"))), String(downloadResponse.headers.get("content-disposition")));
   check("content length matches body", Number(downloadResponse.headers.get("content-length")) === apkBytes.length, `${downloadResponse.headers.get("content-length")} vs ${apkBytes.length}`);

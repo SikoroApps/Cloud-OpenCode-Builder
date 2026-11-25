@@ -27,9 +27,23 @@ Status vocabulary:
 | Phase 7 — Image generation | **COMPLETE** | 3 module tests + HTTP generation test; live Pollinations JPEG generated, stored, re-read after restart and SHA-256 matched. |
 | Phase 8 — Web search and persistent tasks | **COMPLETE** | 5 tests; live DuckDuckGo search returned real results; tasks persisted across a real backend restart. |
 
-Backend automated test suite after the APK-delivery/OAuth/provider work: **88 passed, 0 failed**
-(`cd cloud && npm test`). This includes all earlier phase tests plus new provider, release-workflow
-and APK-delivery tests; no test was removed or weakened.
+Backend automated test suite after the APK-delivery/OAuth/provider/scaffold work: **95 passed,
+0 failed** (`cd cloud && npm test`). This includes all earlier phase tests plus provider,
+release-workflow, APK-delivery, atomic-grant and Android-scaffold tests; no test was removed or
+weakened.
+
+### Current HEAD verification (`73d4289`)
+
+- `Android CI` [`45622989945`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45622989945)
+  — unit tests, lint, debug APK, API 35 emulator smoke and HTTPS integration all green.
+- `Cloud Backend CI` [`45622989755`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45622989755)
+  — 95/95 backend tests.
+- `Publish backend image` `45622989500`, `Dependency audit` `45622989569`,
+  `Submit dependency graph` `45622989468` — all green.
+- Debug APK delivery re-verified on this HEAD: artifact `15027061074`, `app-debug.apk`
+  **10,333,811 bytes**, SHA-256
+  `6b65de0f61e50e30a342cb006e0f76232402a9d587d3e56af0b26abcfebccc71`, 20/20 checks, no
+  `Authorization` header, grant replay `403`.
 
 Rough verified-requirement completion: **8 of 8 phase areas have complete or implemented automated
 verification; Phases 7 and 8 and debug APK delivery have live feature-level verification.** Live
@@ -42,19 +56,22 @@ blocked. The project is **not** a finished production release.
 **APK delivery — live verified (debug APK).** The Builds screen calls
 `/api/projects/build/artifacts`, selects the APK artifact, then uses
 `/api/projects/build/artifact/link` and `/api/projects/build/artifact/checksum`. The generated link is
-a 10-minute, single-use browser URL that needs no GitHub token or Authorization header. Verification
-on commit `b06911a`, `Android CI` run
-[`45600319235`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45600319235)
-(all jobs green), artifact `15015027414` (`cloud-opencode-debug`):
+a 10-minute, single-use browser URL that needs no GitHub token or Authorization header. Grants are
+consumed with a single atomic `DELETE ... RETURNING` so two concurrent requests cannot both succeed.
+Verification on current HEAD `73d4289`, `Android CI` run
+[`45622989945`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45622989945)
+(all jobs green), artifact `15027061074` (`cloud-opencode-debug`):
 
 - downloaded `app-debug.apk` via the grant link with **no Authorization header**;
-- size **10,251,891 bytes**;
-- SHA-256 `c0c9322b810ced52b98b813a427aec8b011ed013f9c133aed2ecf1e0228c69ae`, identical in the
+- size **10,333,811 bytes**;
+- SHA-256 `6b65de0f61e50e30a342cb006e0f76232402a9d587d3e56af0b26abcfebccc71`, identical in the
   `X-APK-Sha256` header, the checksum endpoint, and `sha256sum` of the saved file;
 - `Content-Type: application/vnd.android.package-archive`, `Content-Disposition: attachment`;
 - a replayed grant returned `403`, and an unauthenticated request without a grant returned `401`;
 - 20 of 20 end-to-end delivery checks passed (`cloud/scripts/verify-apk-delivery.mjs`).
 
+The same flow was first verified on `b06911a` (`Android CI` `45600319235`, artifact `15015027414`,
+10,251,891 bytes, SHA-256 `c0c9322b810ced52b98b813a427aec8b011ed013f9c133aed2ecf1e0228c69ae`).
 This proves browser APK delivery for a **debug** artifact. It is not a signed production release.
 
 **GitHub OAuth — implemented, live consent still blocked.** The app declares the
@@ -94,7 +111,7 @@ emulator smoke job is green in CI, but that is not physical-device verification.
 | Chat backend and persistence | COMPLETE | `cloud/src/server.ts`, `chat.ts`, SQLite `chat_messages`; restart test in `tests/api.test.ts`. |
 | Exact five-model free fallback order | COMPLETE | `cloud/src/ai.ts` and `android/backend/.../ModelFallback.kt`; order unchanged. |
 | Automatic fallback after eligible errors/rate limits | COMPLETE | `tests/ai.test.ts`; real OpenCode `429` observed historically. |
-| Errors, timeouts, cancellation | IMPLEMENTED | Provider fetch aborts where supplied; fallback exhaustion maps to `503`. |
+| Errors, timeouts, cancellation | COMPLETE (automated) | Per-attempt `AbortSignal.timeout` (20s) plus bounded exponential backoff; transport rejections continue the chain; fallback exhaustion maps to `503`. Covered by `tests/ai.test.ts`. |
 | Android HTTPS client and Keystore token storage | COMPLETE | `CloudApiClient`, `EncryptedTokenStore`, HTTPS integration job. |
 | Secret handling | COMPLETE | Env-only backend config; APK secret-marker scan in CI. |
 
@@ -107,7 +124,8 @@ emulator smoke job is green in CI, but that is not physical-device verification.
 | Repository list/create/connect + permissions | IMPLEMENTED | `phase5-repository.test.ts`; live repository **BLOCKED**. |
 | AI-assisted file edit + protected paths | COMPLETE (controlled) | `files.test.ts`, `phase4-hardening.test.ts`. |
 | Commit, Actions dispatch, status/logs | IMPLEMENTED | `phase5-build.test.ts`; no live dispatch. |
-| APK artifact retrieval and browser link | IMPLEMENTED | `phase5-apk.test.ts`; no live signed artifact. |
+| APK artifact retrieval and browser link | COMPLETE (debug artifact) | `phase5-apk.test.ts` plus live 20/20 delivery verification on `73d4289`; signed artifact still **BLOCKED**. |
+| New Android Compose starter project | COMPLETE (automated) | `cloud/src/scaffold.ts`, `tests/scaffold.test.ts`, `POST /api/projects/scaffold`: buildable Gradle/AGP/Kotlin-Compose project, launcher icons and cloud build workflow, with clobber protection. |
 | Launcher icon integration | COMPLETE | `launcherIconFiles()`, build workflow icon check. |
 
 ## Phase 4 — Live integration and release verification
@@ -115,7 +133,8 @@ emulator smoke job is green in CI, but that is not physical-device verification.
 | Requirement | Status | Evidence |
 | --- | --- | --- |
 | Masked configuration readiness | COMPLETE | `readiness.ts`, `config-readiness.test.ts`, `check-config.mjs`. |
-| OAuth/token security | COMPLETE (controlled) | Encryption/tamper/single-use state tests. |
+| OAuth/token security | COMPLETE (controlled) | Encryption/tamper/single-use state tests; OAuth callback has its own rate limit and callback URL scheme validation. |
+| Atomic single-use download grants | COMPLETE (automated) | `consumeBuildDownloadGrant` uses one `DELETE ... RETURNING`; `tests/grants.test.ts` proves replay and expiry rejection. |
 | Real workflow dispatch/result verification | IMPLEMENTED | `phase5-build.test.ts`; live dispatch **BLOCKED**. |
 | APK integrity/package/version/ABI checks | IMPLEMENTED | `apk-evidence.ts`, `inspect-apk.mjs`; only debug APK inspected locally. |
 | Signed release configuration | IMPLEMENTED | `signedReleaseWorkflow()`, secret names only; no signing values. |
