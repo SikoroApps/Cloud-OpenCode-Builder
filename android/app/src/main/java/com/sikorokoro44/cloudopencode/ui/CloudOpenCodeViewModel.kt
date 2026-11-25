@@ -111,7 +111,8 @@ class CloudOpenCodeViewModel(
         }
     }
 
-    fun refreshAll(token: String = _state.value.token ?: return) {
+    fun refreshAll(requestedToken: String? = null) {
+        val token = requestedToken ?: _state.value.token ?: return
         viewModelScope.launch {
             _state.update { it.copy(loading = true) }
             client.history(token, _state.value.chatSessionKey).onSuccess { history ->
@@ -152,7 +153,8 @@ class CloudOpenCodeViewModel(
         }
     }
 
-    fun refreshGithub(token: String = _state.value.token ?: return) {
+    fun refreshGithub(requestedToken: String? = null) {
+        val token = requestedToken ?: _state.value.token ?: return
         viewModelScope.launch {
             client.githubStatus(token).onSuccess { status -> _state.update { it.copy(githubStatus = status) } }
             client.githubRepositories(token).onSuccess { repos -> _state.update { it.copy(repositories = repos) } }
@@ -210,7 +212,8 @@ class CloudOpenCodeViewModel(
         }
     }
 
-    fun refreshFiles(token: String = _state.value.token ?: return) {
+    fun refreshFiles(requestedToken: String? = null) {
+        val token = requestedToken ?: _state.value.token ?: return
         viewModelScope.launch {
             client.projectFiles(token).onSuccess { files -> _state.update { it.copy(files = files) } }
         }
@@ -264,7 +267,8 @@ class CloudOpenCodeViewModel(
         }
     }
 
-    fun refreshCommits(token: String = _state.value.token ?: return) {
+    fun refreshCommits(requestedToken: String? = null) {
+        val token = requestedToken ?: _state.value.token ?: return
         viewModelScope.launch {
             client.projectCommits(token).onSuccess { commits -> _state.update { it.copy(commits = commits) } }
         }
@@ -296,7 +300,8 @@ class CloudOpenCodeViewModel(
         }
     }
 
-    fun refreshBuilds(token: String = _state.value.token ?: return) {
+    fun refreshBuilds(requestedToken: String? = null) {
+        val token = requestedToken ?: _state.value.token ?: return
         viewModelScope.launch {
             client.builds(token).onSuccess { builds -> _state.update { it.copy(builds = builds) } }
         }
@@ -327,7 +332,8 @@ class CloudOpenCodeViewModel(
         }
     }
 
-    fun refreshTasks(token: String = _state.value.token ?: return) {
+    fun refreshTasks(requestedToken: String? = null) {
+        val token = requestedToken ?: _state.value.token ?: return
         viewModelScope.launch {
             client.listTasks(token).onSuccess { tasks -> _state.update { it.copy(tasks = tasks) } }
         }
@@ -378,7 +384,8 @@ class CloudOpenCodeViewModel(
         }
     }
 
-    fun refreshImages(token: String = _state.value.token ?: return) {
+    fun refreshImages(requestedToken: String? = null) {
+        val token = requestedToken ?: _state.value.token ?: return
         viewModelScope.launch {
             client.listImages(token).onSuccess { images -> _state.update { it.copy(images = images) } }
         }
