@@ -9,6 +9,9 @@
     "test": "node --test tests/*.test.ts",
     "check:config": "node --experimental-strip-types --no-warnings scripts/check-config.mjs",
     "check:deployment": "node --experimental-strip-types --no-warnings scripts/check-deployment.mjs",
+    "check:deploy-files": "node scripts/check-deploy-files.mjs",
+    "generate:key": "node scripts/generate-encryption-key.mjs",
+    "verify:ai": "node --experimental-strip-types --no-warnings scripts/verify-ai.mjs",
     "typecheck": "node --experimental-strip-types --no-warnings --check src/server.ts"
   },
   "engines": {

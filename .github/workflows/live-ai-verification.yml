@@ -1,0 +1,46 @@
+name: Live AI verification
+
+# Manual-only: provider keys are read from repository secrets and are never printed.
+# With no keys configured the script reports BLOCKED; with --require-live it exits non-zero.
+
+on:
+  workflow_dispatch:
+    inputs:
+      require_live:
+        description: Fail the workflow when no live provider response is obtained
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-ai-verification-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: cloud
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: cloud/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify live model fallback
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          CLOUD_BASE_URL: ${{ vars.CLOUD_BASE_URL || 'https://cloud-opencode.invalid' }}
+          REQUIRE_LIVE: ${{ inputs.require_live && '1' || '0' }}
+        run: npm run verify:ai
