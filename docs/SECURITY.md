@@ -16,7 +16,8 @@
   encrypted with AES-256-GCM and never returned to Android.
 - APK artifact downloads use a 10-minute, single-use, hash-only grant, consumed atomically with one
   `DELETE ... RETURNING` so concurrent replays cannot both succeed. Authenticated artifact access
-  still checks build ownership and successful conclusion.
+  still checks build ownership and successful conclusion. GitHub artifact ZIP bodies are streamed
+  through a byte cap rather than allocated solely on a client-supplied `content-length`.
 - Project file editing rejects protected paths (`.env*`, `.github/*`, Gradle/keystore properties,
   keystores, certificates and Firebase config) and secret-bearing content.
 - Image upload validates magic bytes (not only the declared MIME type), caps input at 5 MiB and
@@ -42,7 +43,7 @@
   production-safe.
 - Five tests cover window resets, key bounds, proxy handling, policy selection and real HTTP
   429 headers; the OAuth callback is rate-limited separately from OAuth start. The full backend
-  suite passed **95/95** locally and in CI on `73d4289`.
+  suite passed **96/96** locally after the bounded artifact-body hardening (95/95 in CI on `73d4289`).
 
 ## Dependency audit
 

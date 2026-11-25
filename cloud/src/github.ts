@@ -129,6 +129,39 @@ export class GithubServiceError extends Error {
   }
 }
 
+/** Read a response body in bounded chunks so a missing or false content-length cannot allocate unbounded memory. */
+export async function readBoundedResponseBytes(response: Response, maxBytes: number): Promise<Uint8Array> {
+  if (!response.body) throw new GithubServiceError("workflow_artifact_download_invalid");
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value?.length) continue;
+      total += value.length;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new GithubServiceError("workflow_artifact_download_invalid");
+      }
+      chunks.push(value);
+    }
+  } catch (error) {
+    if (error instanceof GithubServiceError) throw error;
+    throw new GithubServiceError("workflow_artifact_download_invalid");
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return bytes;
+}
+
 export const GITHUB_OAUTH_SCOPES = "public_repo workflow";
 const REQUIRED_GITHUB_OAUTH_SCOPES = ["public_repo", "workflow"];
 
@@ -613,12 +646,7 @@ export function createGithubService(
       if (Number.isFinite(declaredBytes) && declaredBytes > MAX_WORKFLOW_ARTIFACT_BYTES) {
         throw new GithubServiceError("workflow_artifact_download_invalid");
       }
-      let bytes: Uint8Array;
-      try {
-        bytes = new Uint8Array(await finalResponse.arrayBuffer());
-      } catch {
-        throw new GithubServiceError("workflow_artifact_download_invalid");
-      }
+      const bytes = await readBoundedResponseBytes(finalResponse, MAX_WORKFLOW_ARTIFACT_BYTES);
       if (!bytes.length || bytes.length > MAX_WORKFLOW_ARTIFACT_BYTES) {
         throw new GithubServiceError("workflow_artifact_download_invalid");
       }

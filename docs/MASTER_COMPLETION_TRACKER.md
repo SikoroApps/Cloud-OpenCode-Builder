@@ -21,23 +21,24 @@ Status vocabulary:
 | Phase 1 — Foundation | **COMPLETE** | Historical green `Android CI` `45274532780`; Android/backend unit tests, lint, emulator launch and debug APK. |
 | Phase 2 — Cloud AI engine | **COMPLETE** (automated + real provider probes) | 8 Phase 2 tests; real OpenCode `MODELTEST`; OpenRouter real `429`; HTTPS tunnel integration. Permanent hosting remains a Phase 5 blocker. |
 | Phase 3 — GitHub integration | **IMPLEMENTED** (live **BLOCKED**) | 30 tests at the Phase 3 gate; OAuth, repositories, file editing, commits, Actions, artifact links. No live OAuth App/browser consent here. |
-| Phase 4 — Live integration and release verification | **IMPLEMENTED** (live **BLOCKED**) | 38 tests at the Phase 4 gate; encrypted tokens, protected paths, APK evidence parsing, signed-release template. No live OAuth/release run here. |
-| Phase 5 — Deployment and first real APK | **IMPLEMENTED** (live **BLOCKED**) | 60 tests at the Phase 5 gate; deployment checker, GHCR image publish success, Caddy/Compose shape; only a debug APK artifact was inspected. No signed release or physical device. |
+| Phase 4 — Live integration and release verification | **IMPLEMENTED** (live **BLOCKED**) | 38 tests at the Phase 4 gate; encrypted tokens, protected paths, APK evidence parsing, signed-release template. A self-signed signed release has since run; live OAuth consent is still blocked. |
+| Phase 5 — Deployment and first real APK | **IMPLEMENTED** (live **BLOCKED**) | 60 tests at the Phase 5 gate; deployment checker, GHCR image publish success, Caddy/Compose shape; debug APK delivery and a self-signed signed APK are verified. Real public backend and physical device remain blocked. |
 | Phase 6 — Image uploads and understanding | **IMPLEMENTED** (live understanding **BLOCKED**) | Upload/storage/ownership verified; vision service requires `OPENROUTER_API_KEY`; controlled tests only for understanding. |
 | Phase 7 — Image generation | **COMPLETE** | 3 module tests + HTTP generation test; live Pollinations JPEG generated, stored, re-read after restart and SHA-256 matched. |
 | Phase 8 — Web search and persistent tasks | **COMPLETE** | 5 tests; live DuckDuckGo search returned real results; tasks persisted across a real backend restart. |
 
-Backend automated test suite after the APK-delivery/OAuth/provider/scaffold work: **95 passed,
-0 failed** (`cd cloud && npm test`). This includes all earlier phase tests plus provider,
-release-workflow, APK-delivery, atomic-grant and Android-scaffold tests; no test was removed or
-weakened.
+Backend automated test suite after the APK-delivery/OAuth/provider/scaffold/release work: **96
+passed, 0 failed** (`cd cloud && npm test`). This includes all earlier phase tests plus provider,
+release-workflow, APK-delivery, atomic-grant, Android-scaffold and bounded artifact-body tests; no
+test was removed or weakened.
 
 ### Current HEAD verification (`73d4289`)
 
 - `Android CI` [`45622989945`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45622989945)
   — unit tests, lint, debug APK, API 35 emulator smoke and HTTPS integration all green.
 - `Cloud Backend CI` [`45622989755`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45622989755)
-  — 95/95 backend tests.
+  — 95/95 backend tests at that checkpoint; the bounded artifact-body hardening adds one more test
+  (96 total).
 - `Publish backend image` `45622989500`, `Dependency audit` `45622989569`,
   `Submit dependency graph` `45622989468` — all green.
 - Debug APK delivery re-verified on this HEAD: artifact `15027061074`, `app-debug.apk`
@@ -47,8 +48,9 @@ weakened.
 
 Rough verified-requirement completion: **8 of 8 phase areas have complete or implemented automated
 verification; Phases 7 and 8 and debug APK delivery have live feature-level verification.** Live
-production release gates (OAuth consent, deployed HTTPS backend, signed APK, physical device) remain
-blocked. The project is **not** a finished production release.
+production release gates (live OAuth consent, deployed HTTPS backend, production signing key,
+physical device) remain blocked. The release pipeline and a self-signed APK signature are verified,
+but the project is **not** a finished production release.
 
 
 ## Android APK delivery, OAuth and release update
@@ -145,6 +147,7 @@ emulator smoke job is green in CI, but that is not physical-device verification.
 | Masked configuration readiness | COMPLETE | `readiness.ts`, `config-readiness.test.ts`, `check-config.mjs`. |
 | OAuth/token security | COMPLETE (controlled) | Encryption/tamper/single-use state tests; OAuth callback has its own rate limit and callback URL scheme validation. |
 | Atomic single-use download grants | COMPLETE (automated) | `consumeBuildDownloadGrant` uses one `DELETE ... RETURNING`; `tests/grants.test.ts` proves replay and expiry rejection. |
+| Bounded artifact-body reads | COMPLETE (automated) | `readBoundedResponseBytes` caps streamed GitHub artifact bodies independently of `content-length`; `tests/github.test.ts` proves oversized streams are rejected. |
 | Real workflow dispatch/result verification | IMPLEMENTED | `phase5-build.test.ts`; live dispatch **BLOCKED**. |
 | APK integrity/package/version/ABI checks | IMPLEMENTED | `apk-evidence.ts`, `inspect-apk.mjs`; only debug APK inspected locally. |
 | Signed release configuration | IMPLEMENTED | `signedReleaseWorkflow()`, secret names only; no signing values. |

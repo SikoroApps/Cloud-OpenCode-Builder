@@ -7,7 +7,9 @@ import {
   createGithubService,
   decryptToken,
   encryptToken,
+  GithubServiceError,
   isGithubConfigured,
+  readBoundedResponseBytes,
   GITHUB_OAUTH_SCOPES,
 } from "../src/github.ts";
 
@@ -237,6 +239,21 @@ test("artifact listing and authorized download use the successful run", async ()
   assert.equal(redirectAuth, "none");
   assert.deepEqual(Array.from(downloaded.bytes), [1, 2, 3, 4]);
   assert.equal(downloaded.suggestedFilename, "artifact.zip");
+});
+
+test("artifact bodies are bounded even without a content-length header", async () => {
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new Uint8Array([1, 2, 3]));
+      controller.enqueue(new Uint8Array([4, 5, 6]));
+      controller.close();
+    },
+  });
+  const response = new Response(stream, { status: 200 });
+  await assert.rejects(
+    () => readBoundedResponseBytes(response, 4),
+    (error) => error instanceof GithubServiceError && error.code === "workflow_artifact_download_invalid",
+  );
 });
 
 test("OAuth code exchange succeeds and never echoes provider errors with token material", async () => {

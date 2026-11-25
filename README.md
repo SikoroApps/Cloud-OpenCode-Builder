@@ -16,7 +16,8 @@ download signed APKs. Cloud tasks continue running even when the user's phone di
 - Source HEAD: `73d4289`; every workflow below is green on this commit.
 - `Android CI` run `45622989945`: unit tests, lint, debug APK, API 35 emulator smoke test and
   HTTPS backend integration all passed.
-- `Cloud Backend CI` run `45622989755`: **95 tests passed, 0 failed**.
+- `Cloud Backend CI` run `45622989755`: **95 tests passed, 0 failed** at that checkpoint; the
+  bounded artifact-body hardening below adds one more test (96 total).
 - `Publish backend image` `45622989500`, `Dependency audit` `45622989569` and
   `Submit dependency graph` `45622989468` all succeeded.
 - Debug APK delivery was re-verified end-to-end on this HEAD: artifact `15027061074`
@@ -158,9 +159,10 @@ was single-use, and all 20 delivery checks passed. The same flow was first verif
 
 The signed release workflow (`.github/workflows/android-release.yml`) is implemented and gated on
 `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`,
-`ANDROID_KEY_PASSWORD`, and a public `CLOUD_BASE_URL`. It cannot be run until those repository
-secrets/variables exist. Physical-device verification also remains blocked because no `adb`-connected
-device is available; the API 35 emulator smoke test is green in CI but is not a physical device.
+`ANDROID_KEY_PASSWORD`, and a public `CLOUD_BASE_URL`. A self-signed keystore has since been placed
+in repository Actions secrets and the workflow has been run successfully; see the signed release
+section below. Physical-device verification remains blocked because no `adb`-connected device is
+available; the API 35 emulator smoke test is green in CI but is not a physical device.
 
 ### Signed release run (self-signed key)
 
@@ -204,7 +206,7 @@ checkpoint:
   search-grounded chat with citations, and SQLite-backed tasks that survive backend restarts.
   **Live verified**. See `docs/PHASE_8.md`.
 
-The backend suite now contains **95 passing tests, 0 failed** (see the current checkpoint above).
+The backend suite now contains **96 passing tests, 0 failed** (see the current checkpoint above).
 The HTTPS integration test exercises image upload/list/analysis, generation, search and the task
 lifecycle in addition to APK delivery. The authoritative status and remaining external blockers are
 in `docs/MASTER_COMPLETION_TRACKER.md`. Production release gates (deployed HTTPS backend, real
