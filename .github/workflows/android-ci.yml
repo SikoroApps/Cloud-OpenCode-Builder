@@ -54,7 +54,7 @@ jobs:
         run: ./gradlew testDebugUnitTest --no-daemon
       - name: Upload unit test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cloud-opencode-unit-test-results
           path: android/app/build/test-results/testDebugUnitTest/*.xml
@@ -64,7 +64,7 @@ jobs:
         run: ./gradlew :backend:test --no-daemon
       - name: Upload backend core test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cloud-opencode-backend-test-results
           path: android/backend/build/test-results/test/*.xml
@@ -74,7 +74,7 @@ jobs:
         run: ./gradlew lintDebug --no-daemon
       - name: Upload lint report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cloud-opencode-lint
           path: android/app/build/reports/lint-results-debug.*
@@ -106,7 +106,7 @@ jobs:
           done
           echo "Client artifact secret marker scan passed."
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cloud-opencode-debug
           path: android/app/build/outputs/apk/debug/*.apk
@@ -163,7 +163,7 @@ jobs:
           script: ./gradlew connectedDebugAndroidTest --no-daemon
       - name: Upload device test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cloud-opencode-device-test-results
           path: android/app/build/reports/androidTests/connected/**
@@ -289,7 +289,7 @@ jobs:
           script: ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.sikorokoro44.cloudopencode.HttpsBackendIntegrationTest --no-daemon
       - name: Upload HTTPS integration test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cloud-opencode-https-integration-results
           path: android/app/build/reports/androidTests/connected/**
