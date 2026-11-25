@@ -470,7 +470,7 @@ class CloudOpenCodeViewModel(
             client.saveProjectFile(token, path, draft).onSuccess { file ->
                 succeed("Saved ${file.path}")
                 fetchFiles(token)
-            }.onFailure { error -> report("File save failed", error, retry = { saveSelectedFile() } })
+            }.onFailure { error -> report("File save failed", error, retry = { saveSelectedFile() }) }
             _state.update { it.copy(loading = false) }
         }
     }
@@ -487,7 +487,7 @@ class CloudOpenCodeViewModel(
             client.aiEditFiles(token, instruction).onSuccess { result ->
                 succeed("AI edited ${result.applied.size} file(s) with ${result.model}")
                 fetchFiles(token)
-            }.onFailure { error -> report("AI file edit failed", error, retry = { aiEditFiles() } })
+            }.onFailure { error -> report("AI file edit failed", error, retry = { aiEditFiles() }) }
             _state.update { it.copy(loading = false) }
         }
     }
@@ -501,7 +501,7 @@ class CloudOpenCodeViewModel(
                 succeed("Commit ${result.commitId}: ${result.status}")
                 fetchFiles(token)
                 fetchCommits(token)
-            }.onFailure { error -> report("Commit failed", error, retry = { commitProject() } })
+            }.onFailure { error -> report("Commit failed", error, retry = { commitProject() }) }
             _state.update { it.copy(loading = false) }
         }
     }
@@ -600,7 +600,7 @@ class CloudOpenCodeViewModel(
             client.refreshBuild(token, buildId).onSuccess { build ->
                 succeed("Build ${build.id}: ${build.status} ${build.conclusion ?: ""}")
                 fetchBuilds(token)
-            }.onFailure { error -> report("Build refresh failed", error, retry = { refreshBuild(buildId) } })
+            }.onFailure { error -> report("Build refresh failed", error, retry = { refreshBuild(buildId) }) }
         }
     }
 
@@ -623,7 +623,7 @@ class CloudOpenCodeViewModel(
                 }
                 _state.update { it.copy(buildLogs = text, buildLogSummary = logs) }
                 succeed("Loaded logs for $buildId")
-            }.onFailure { error -> report("Build logs unavailable", error, retry = { loadBuildLogs(buildId) } })
+            }.onFailure { error -> report("Build logs unavailable", error, retry = { loadBuildLogs(buildId) }) }
         }
     }
 
