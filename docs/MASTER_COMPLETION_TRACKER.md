@@ -43,13 +43,13 @@ blocked. The project is **not** a finished production release.
 `/api/projects/build/artifacts`, selects the APK artifact, then uses
 `/api/projects/build/artifact/link` and `/api/projects/build/artifact/checksum`. The generated link is
 a 10-minute, single-use browser URL that needs no GitHub token or Authorization header. Verification
-on commit `3c084b7`, `Android CI` run
-[`45596731820`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45596731820)
-(all jobs green), artifact `15013596629` (`cloud-opencode-debug`):
+on commit `b06911a`, `Android CI` run
+[`45600319235`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45600319235)
+(all jobs green), artifact `15015027414` (`cloud-opencode-debug`):
 
 - downloaded `app-debug.apk` via the grant link with **no Authorization header**;
 - size **10,251,891 bytes**;
-- SHA-256 `e26da391e078e3b6c1c2e6dfe3e83d125afbf9ec601cda393bdfe723469eab42`, identical in the
+- SHA-256 `c0c9322b810ced52b98b813a427aec8b011ed013f9c133aed2ecf1e0228c69ae`, identical in the
   `X-APK-Sha256` header, the checksum endpoint, and `sha256sum` of the saved file;
 - `Content-Type: application/vnd.android.package-archive`, `Content-Disposition: attachment`;
 - a replayed grant returned `403`, and an unauthenticated request without a grant returned `401`;
@@ -82,7 +82,7 @@ emulator smoke job is green in CI, but that is not physical-device verification.
 | Kotlin + Jetpack Compose structure | COMPLETE | `android/app/src/main/java/.../MainActivity.kt`, Gradle Compose plugins. |
 | MinSdk 26 / target 35 / package identity | COMPLETE | `android/app/build.gradle.kts`; debug package `com.sikorokoro44.cloudopencode.debug`. |
 | Launcher icon | COMPLETE | Adaptive icon resources in `res/mipmap-anydpi-v26` and `res/drawable`. |
-| Unit tests | COMPLETE | `BuildConfigurationTest`, `CloudApiClientSecureUrlTest`, `ApkDeliveryTest`, `GithubOAuthResultTest`; `Android CI` `45596731820` green. |
+| Unit tests | COMPLETE | `BuildConfigurationTest`, `CloudApiClientSecureUrlTest`, `ApkDeliveryTest`, `GithubOAuthResultTest`; `Android CI` `45600319235` green. |
 | Lint | COMPLETE | `./gradlew lintDebug` in `Android CI`. |
 | Emulator launch smoke test | COMPLETE | API 35 emulator job `Emulator app-launch smoke test`. |
 | Debug APK assembly | COMPLETE | Historical artifact, SHA-256 in `docs/PROGRESS.md`. |

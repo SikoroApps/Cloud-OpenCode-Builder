@@ -130,11 +130,11 @@ the APK artifact automatically, creates a 10-minute single-use browser-downloada
 and displays build status, APK filename, size, expiry, and SHA-256. The GitHub tab starts OAuth and
 the app now handles the `cloudopencode://github/callback` deep link to refresh connection state.
 
-**APK delivery is live-verified** on implementation commit `3c084b7` against `Android CI` run
-`45596731820` (all jobs green). The backend created a grant link for artifact `15013596629`
+**APK delivery is live-verified** on implementation commit `b06911a` against `Android CI` run
+`45600319235` (all jobs green). The backend created a grant link for artifact `15015027414`
 (`cloud-opencode-debug`) and the link was downloaded **without any Authorization header**. The
 downloaded `app-debug.apk` is **10,251,891 bytes** with SHA-256
-`e26da391e078e3b6c1c2e6dfe3e83d125afbf9ec601cda393bdfe723469eab42`; the checksum endpoint returned
+`c0c9322b810ced52b98b813a427aec8b011ed013f9c133aed2ecf1e0228c69ae`; the checksum endpoint returned
 the same value, the response used `Content-Type: application/vnd.android.package-archive`, the grant
 was single-use, and all 20 delivery checks passed. This is a debug APK, not a signed release.
 
