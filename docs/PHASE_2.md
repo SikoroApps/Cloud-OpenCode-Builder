@@ -73,11 +73,59 @@ backend adapter:
 evidence. The stubbed API persistence test and controlled fallback tests are explicitly simulated
 integration coverage, not live verification of every provider.
 
+## Gemma 4 26B A4B free root cause (2026-11-25)
+
+The recurring `Error: Provider returned error` was traced to the last entry in the free chain:
+
+- Configured model: `openrouter/google/gemma-4-26b-a4b-it:free`.
+- Backend split: provider `openrouter`, model ID `google/gemma-4-26b-a4b-it:free`.
+- Actual OpenCode session error: `type: provider.rate-limit`, `status: 429`, `message:
+  Provider returned error`. The response body reported provider `Google AI Studio`,
+  `provider_error_code: 429`, and `limit_source: upstream_provider_shared_pool`.
+- The same upstream `429` was reproduced twice through the OpenRouter chat-completions API with a
+  single request each and no retry loop:
+  - plain text request (`"Reply with exactly: OK"`, `max_tokens: 16`): HTTP `429`, elapsed 2089 ms;
+  - tool-calling request (one `echo` function tool): HTTP `429`, elapsed 661 ms.
+- Both responses contained the same remedy hint: retry shortly, add a provider key to use private
+  limits, or route to another provider. The user identifier in the response is redacted here.
+
+Representative redacted response body:
+
+```json
+{
+  "error": {
+    "message": "Provider returned error",
+    "code": 429,
+    "metadata": {
+      "raw": "google/gemma-4-26b-a4b-it:free is temporarily rate-limited upstream. Please retry shortly, or add your own provider key to use your own limits: https://openrouter.ai/workspaces/default/byok",
+      "provider_name": "Google AI Studio",
+      "is_byok": false,
+      "provider_error_code": "429",
+      "limit_source": "upstream_provider_shared_pool",
+      "remedy_hint": "Retry shortly, add your own provider key to use your own limits (https://openrouter.ai/workspaces/default/byok), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing."
+    }
+  },
+  "user_id": "<REDACTED>"
+}
+```
+
+This rules out authentication, model routing, unsupported parameters, context limits and
+tool-calling incompatibility as the cause: the request reached the provider and was rejected by the
+upstream shared free pool before any text or tool result was produced. The global fallback plugin
+had already exhausted its five configured attempts, so OpenCode's own retry loop kept retrying the
+last model. `cloud/src/ai.ts` now caps each model at one retry, opens a 60-second circuit breaker
+after two failures, wraps to the next healthy free model (including after Gemma fails), and records
+failed models only as failed attempts. Gemma is therefore marked unsuitable for automatic
+agent/tool-calling work until upstream availability or a private key is available. The verified
+free replacement for automatic building is `opencode/big-pickle`, with
+`opencode/deepseek-v4.1-flash-free` and `opencode/flint-40b-free` as verified free alternates.
+
 ## Completion criteria
 
 - Cloud service runnable: **yes** locally and as a container image.
 - At least one real AI provider response: **yes** (three OpenCode models returned `MODELTEST`).
-- Five-model fallback logic tested: **yes**, controlled tests assert exact order and exhaustion.
+- Five-model fallback logic tested: **yes**, controlled tests assert exact order, one-retry cap,
+  circuit-breaker exclusion, Gemma-to-healthy-model wrap, recovery after cooldown and exhaustion.
 - Automatic switching demonstrated: **yes**, controlled integration tests plus a real `429`
   provider error; a full live five-model success chain was not possible because OpenRouter free
   models were rate-limited and no backend `OPENROUTER_API_KEY` secret is configured.
