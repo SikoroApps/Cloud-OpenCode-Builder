@@ -24,6 +24,8 @@ jobs:
           distribution: temurin
           java-version: '17'
       - name: Submit full Gradle dependency graph for Dependabot alerts
-        uses: gradle/actions/dependency-submission@v4
+        uses: gradle/actions/dependency-submission@v6.4.1
         with:
           build-root-directory: android
+          # Keep the proprietary gradle-actions-caching component unloaded.
+          cache-provider: basic
