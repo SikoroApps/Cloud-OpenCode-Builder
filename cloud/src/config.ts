@@ -67,6 +67,9 @@ export function loadConfig(): CloudConfig {
   if (!/^https?:\/\//.test(openCodeBaseUrl)) throw new Error("OPENCODE_BASE_URL must be an absolute http(s) URL");
   if (!/^https:\/\//.test(github.apiBaseUrl)) throw new Error("GITHUB_API_BASE_URL must use https");
   if (!/^https:\/\//.test(github.authBaseUrl)) throw new Error("GITHUB_AUTH_BASE_URL must use https");
+  if (!/^[a-z][a-z0-9+.-]*:\/\/\S+$/i.test(github.appCallbackUrl)) {
+    throw new Error("GITHUB_APP_CALLBACK_URL must be an absolute URL");
+  }
   return {
     port,
     host,

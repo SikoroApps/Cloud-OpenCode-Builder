@@ -27,8 +27,7 @@ import {
   updateBuild,
   findProjectById,
   saveBuildDownloadGrant,
-  findBuildDownloadGrant,
-  deleteBuildDownloadGrant,
+  consumeBuildDownloadGrant,
   saveImage,
   findImage,
   listImages,
@@ -191,6 +190,8 @@ async function handleApiRequestInner(
     return;
   }
   if (req.method === "GET" && path === "/api/github/oauth/callback") {
+    // Callbacks are unauthenticated browser redirects, so they need their own rate limit.
+    if (!applyRateLimit(req, res, deps, RATE_LIMIT_POLICIES.oauth, null)) return;
     handleGithubCallback(url, res, deps);
     return;
   }
@@ -217,17 +218,26 @@ async function handleApiRequestInner(
   }
   if (req.method === "GET" && path === "/api/auth/me") {
     const user = getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite").prepare("SELECT id, email FROM users WHERE id = ?").get(auth.userId) as any;
+    if (!user) {
+      sendJson(res, 401, { error: "unauthorized" });
+      return;
+    }
     sendJson(res, 200, { user: { id: String(user.id), email: String(user.email) } });
     return;
   }
   if (req.method === "POST" && path === "/api/auth/logout") {
     const token = bearerToken(req);
     revokeSessionByToken(token);
-    sendJson(res, 204, {});
+    res.writeHead(204, { "Cache-Control": "no-store" });
+    res.end();
     return;
   }
   if (req.method === "GET" && path === "/api/chat/history") {
     const sessionKey = url.searchParams.get("sessionKey") || "default";
+    if (sessionKey.length > 200) {
+      sendJson(res, 400, { error: "invalid_request" });
+      return;
+    }
     const history = getChatHistory(auth.userId, sessionKey, 200);
     sendJson(res, 200, { history });
     return;
@@ -679,6 +689,7 @@ async function handleApiRequestInner(
   }
   if (req.method === "POST" && path === "/api/projects/commit") {
     const body = await readJson(req);
+    const results: any[] = [];
     try {
       const { token, project } = requireSelectedProject(auth.userId, deps);
       const message = String(body?.message || "").trim();
@@ -689,7 +700,6 @@ async function handleApiRequestInner(
       const owner = String(project.repoOwner);
       const repo = String(project.repoName);
       const branch = String(project.defaultBranch);
-      const results: any[] = [];
       for (const file of dirtyFiles) {
         const filePath = String(file.path);
         const existing = await deps.githubService.getFile(token, { owner, repo, path: filePath, branch });
@@ -702,9 +712,10 @@ async function handleApiRequestInner(
           branch,
           sha: existing?.sha ?? null,
         });
-        markProjectFileCommitted(String(project.id), filePath, Date.now());
         results.push({ path: filePath, sha: commit.sha, htmlUrl: commit.htmlUrl });
       }
+      // Only mark files clean after every GitHub write succeeded.
+      for (const file of results) markProjectFileCommitted(String(project.id), file.path, Date.now());
       recordProjectCommit({
         id: commitId,
         projectId: String(project.id),
@@ -722,9 +733,11 @@ async function handleApiRequestInner(
           id: randomUUID(),
           projectId: String(project.id),
           status: "failed",
-          commitSha: null,
+          commitSha: results[0]?.sha ?? null,
           message: String(body?.message || "").slice(0, 200),
-          error: safeGithubError(error),
+          error: results.length
+            ? `${safeGithubError(error)}; partial commits: ${results.map((entry) => `${entry.path}@${entry.sha}`).join(", ")}`
+            : safeGithubError(error),
           now: Date.now(),
         });
       }
@@ -766,13 +779,9 @@ async function handleApiRequestInner(
       if (!/^\.github\/workflows\/[A-Za-z0-9_.-]+\.ya?ml$/.test(workflowPath) || !/^[A-Za-z0-9_./-]{1,200}$/.test(ref)) {
         throw new ApiRequestError(400, "invalid_request");
       }
-      await deps.githubService.dispatchWorkflow(token, {
-        owner: String(project.repoOwner),
-        repo: String(project.repoName),
-        workflowPath,
-        ref,
-      });
       const buildId = randomUUID();
+      const now = Date.now();
+      // Persist first: a successful dispatch must never leave an untracked GitHub run.
       saveBuild({
         id: buildId,
         projectId: String(project.id),
@@ -785,8 +794,29 @@ async function handleApiRequestInner(
         runUrl: null,
         logsUrl: null,
         error: null,
-        now: Date.now(),
+        now,
       });
+      try {
+        await deps.githubService.dispatchWorkflow(token, {
+          owner: String(project.repoOwner),
+          repo: String(project.repoName),
+          workflowPath,
+          ref,
+        });
+      } catch (dispatchError) {
+        updateBuild({
+          id: buildId,
+          status: "completed",
+          conclusion: "failure",
+          progress: 0,
+          runId: null,
+          runUrl: null,
+          logsUrl: null,
+          error: safeGithubError(dispatchError),
+          now: Date.now(),
+        });
+        throw dispatchError;
+      }
       sendJson(res, 201, { build: buildDto(findBuild(buildId)) });
     } catch (error) {
       sendGithubError(res, error);
@@ -1039,7 +1069,7 @@ async function handleApiRequestInner(
       let grantHash = "";
       if (rawGrant) {
         grantHash = createHashHex(rawGrant);
-        const record = findBuildDownloadGrant(grantHash, Date.now());
+        const record = consumeBuildDownloadGrant(grantHash, Date.now());
         if (!record) throw new ApiRequestError(403, "invalid_download_grant");
         userId = String(record.userId);
         build = findBuild(String(record.buildId));
@@ -1052,8 +1082,8 @@ async function handleApiRequestInner(
       if (build.status !== "completed" || build.conclusion !== "success") throw new ApiRequestError(409, "build_not_successful");
       if (!build.runId) throw new ApiRequestError(409, "build_not_started");
       if (!Number.isFinite(artifactId) || artifactId <= 0) throw new ApiRequestError(400, "invalid_request");
+      // Grants are consumed atomically at lookup time; no second deletion is needed.
       const apk = await resolveApkArtifact(userId, deps, build, artifactId);
-      if (grantHash) deleteBuildDownloadGrant(grantHash);
       res.writeHead(200, {
         "Content-Type": "application/vnd.android.package-archive",
         "Content-Disposition": `attachment; filename="${apk.filename}"`,
@@ -1182,7 +1212,10 @@ async function refreshBuild(userId: string, deps: ApiDependencies, rawBuildId: u
       ref: String(build.ref),
       createdAfter: Number(build.createdAt),
     });
-    run = runs[0];
+    // Pick the oldest run created after this build record, not the newest matching run.
+    run = runs
+      .filter((candidate) => Number(candidate.createdAt) >= Number(build.createdAt) - 5_000)
+      .sort((left, right) => Number(left.createdAt) - Number(right.createdAt))[0];
   }
   if (!run) return findBuild(buildId);
   const jobs = await deps.githubService.listWorkflowJobs(token, { owner, repo, runId: run.id });

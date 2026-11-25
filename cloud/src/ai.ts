@@ -11,6 +11,9 @@ export const FALLBACK_CHAIN: FallbackCandidate[] = [
 ];
 
 const ELIGIBLE_STATUS_CODES = new Set([401, 402, 429, 500, 502, 503, 504]);
+const DEFAULT_ATTEMPT_TIMEOUT_MS = 20_000;
+const DEFAULT_BACKOFF_MS = 100;
+const MAX_BACKOFF_MS = 800;
 
 export function isEligibleError(error: AiError): boolean {
   if (typeof error?.status === "number") return ELIGIBLE_STATUS_CODES.has(error.status);
@@ -36,6 +39,9 @@ export async function runAiFallback(input: {
   signal?: AbortSignal;
   maxAttempts?: number;
   providerFor?: (candidate: FallbackCandidate) => ReturnType<typeof createAiProvider>;
+  /** Injectable for deterministic tests; production uses bounded exponential backoff. */
+  backoffMs?: number;
+  attemptTimeoutMs?: number;
 }): Promise<AiRunResult> {
   if (process.env.CLOUD_AI_STUB === "1") {
     const lastUser = [...input.messages].reverse().find((message) => message.role === "user");
@@ -50,18 +56,37 @@ export async function runAiFallback(input: {
   const attempts: AiAttemptResult[] = [];
   const providerFor = input.providerFor ?? ((candidate: FallbackCandidate) => createAiProvider(candidate));
 
+  const backoffMs = Math.max(0, input.backoffMs ?? DEFAULT_BACKOFF_MS);
+  const attemptTimeoutMs = Math.max(1, input.attemptTimeoutMs ?? DEFAULT_ATTEMPT_TIMEOUT_MS);
+
   for (let index = 0; index < maxAttempts; index += 1) {
+    if (input.signal?.aborted) break;
     const candidate = FALLBACK_CHAIN[index];
-    const outcome = await providerFor(candidate).complete({ candidate, messages: input.messages, signal: input.signal });
-    if (outcome.result) {
+    const timeout = AbortSignal.timeout(attemptTimeoutMs);
+    const signal = input.signal ? AbortSignal.any([input.signal, timeout]) : timeout;
+    let error: AiError | undefined;
+    let outcome: Awaited<ReturnType<ReturnType<typeof createAiProvider>["complete"]>> | undefined;
+    try {
+      outcome = await providerFor(candidate).complete({ candidate, messages: input.messages, signal });
+    } catch (thrown) {
+      // Transport rejections must not abort the fallback chain.
+      error = {
+        message: thrown instanceof Error ? thrown.name : "provider_transport_error",
+        kind: "unavailable",
+        status: 503,
+      } as AiError;
+    }
+    if (outcome?.result) {
       const attempt: AiAttemptResult = { model: candidate.id, content: outcome.result.content, finishReason: outcome.result.finishReason };
       attempts.push(attempt);
       return { model: candidate.id, content: outcome.result.content, finishReason: outcome.result.finishReason, attempts };
     }
     attempts.push({ model: candidate.id, content: "", finishReason: "error" });
-    const error = outcome.error as AiError;
+    error = (outcome?.error as AiError | undefined) ?? error;
     const next = FALLBACK_CHAIN[index + 1];
-    if (!next || !isEligibleError(error)) break;
+    if (!next || !isEligibleError(error as AiError) || input.signal?.aborted) break;
+    const delay = Math.min(MAX_BACKOFF_MS, backoffMs * 2 ** index);
+    if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
   }
 
   const fallbackError: AiError = { message: "ai_fallback_exhausted", status: 503, kind: "ai_fallback_exhausted", attempts };

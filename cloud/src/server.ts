@@ -16,6 +16,7 @@ export async function startCloudServer(): Promise<void> {
         kind: safeError?.kind,
       });
       const status = (error as any)?.name === "AiModelFallbackError" ? 503 : 500;
+      if (res.writableEnded || res.destroyed) return;
       if (!res.headersSent) {
         res.writeHead(status, { "Content-Type": "application/json" });
       }

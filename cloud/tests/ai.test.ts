@@ -56,11 +56,50 @@ test("fallback stops after a non-eligible error", async () => {
   assert.equal(calls, 1);
 });
 
+test("a rejected provider promise still tries the next model", async () => {
+  const calls: string[] = [];
+  const result = await runAiFallback({
+    messages: [{ role: "user", content: "Hello" }],
+    backoffMs: 0,
+    providerFor: (candidate) => ({
+      complete: async () => {
+        calls.push(candidate.id);
+        if (calls.length === 1) throw new TypeError("fetch failed");
+        return { result: { content: "TRANSPORT_RECOVERED", finishReason: "stop" } };
+      },
+    }),
+  });
+  assert.equal(result.content, "TRANSPORT_RECOVERED");
+  assert.deepEqual(calls, [FALLBACK_CHAIN[0].id, FALLBACK_CHAIN[1].id]);
+});
+
+test("transport rejections across the whole chain are bounded and exhaust", async () => {
+  let calls = 0;
+  let sawSignal = false;
+  await assert.rejects(
+    runAiFallback({
+      messages: [{ role: "user", content: "Hello" }],
+      backoffMs: 0,
+      providerFor: () => ({
+        complete: async ({ signal }) => {
+          calls += 1;
+          sawSignal = Boolean(signal?.aborted === false);
+          throw new Error("network down");
+        },
+      }),
+    }),
+    (error: any) => error.name === "AiModelFallbackError",
+  );
+  assert.equal(calls, FALLBACK_CHAIN.length);
+  assert.equal(sawSignal, true);
+});
+
 test("fallback exhausts after the configured chain length", async () => {
   let calls = 0;
   await assert.rejects(
     runAiFallback({
       messages: [{ role: "user", content: "Hello" }],
+      backoffMs: 0,
       providerFor: (candidate) => ({
         complete: async () => {
           calls += 1;

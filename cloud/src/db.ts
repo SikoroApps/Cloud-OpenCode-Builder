@@ -537,6 +537,18 @@ export function deleteBuildDownloadGrant(tokenHash: string): void {
     .run(tokenHash);
 }
 
+/** Atomically consume an unexpired grant so concurrent requests cannot both use it. */
+export function consumeBuildDownloadGrant(tokenHash: string, now: number): any | undefined {
+  return getDb(process.env.CLOUD_DB_PATH || "cloud-opencode-backend.sqlite")
+    .prepare(
+      `DELETE FROM build_download_grants
+       WHERE token_hash = ? AND expires_at > ?
+       RETURNING token_hash AS tokenHash, user_id AS userId, build_id AS buildId,
+                 artifact_id AS artifactId, expires_at AS expiresAt`,
+    )
+    .get(tokenHash, now) as any;
+}
+
 export function saveImage(input: {
   id: string;
   userId: string;

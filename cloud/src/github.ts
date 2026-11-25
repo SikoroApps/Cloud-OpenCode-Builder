@@ -3,6 +3,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import type { GithubConfig } from "./config.ts";
 
 const MAX_WORKFLOW_ARTIFACT_BYTES = 100 * 1024 * 1024;
+const GITHUB_REQUEST_TIMEOUT_MS = 30_000;
 
 export interface GithubTokenExchange {
   accessToken: string;
@@ -224,8 +225,12 @@ function mapWorkflowJob(payload: any): WorkflowJob {
 
 export function createGithubService(
   config: GithubConfig,
-  fetchImpl: typeof fetch = fetch,
+  rawFetch: typeof fetch = fetch,
 ): GithubService {
+  // Every GitHub call gets a bounded timeout; callers can still supply a shorter signal.
+  const fetchImpl: typeof fetch = (input, init) =>
+    rawFetch(input, { ...(init ?? {}), signal: init?.signal ?? AbortSignal.timeout(GITHUB_REQUEST_TIMEOUT_MS) });
+
   function apiHeaders(accessToken: string): Record<string, string> {
     return {
       Authorization: `Bearer ${accessToken}`,
@@ -604,6 +609,10 @@ export function createGithubService(
         }
       }
       if (!finalResponse.ok) throw new GithubServiceError("workflow_artifact_download_failed", finalResponse.status);
+      const declaredBytes = Number(finalResponse.headers.get("content-length") || 0);
+      if (Number.isFinite(declaredBytes) && declaredBytes > MAX_WORKFLOW_ARTIFACT_BYTES) {
+        throw new GithubServiceError("workflow_artifact_download_invalid");
+      }
       let bytes: Uint8Array;
       try {
         bytes = new Uint8Array(await finalResponse.arrayBuffer());
