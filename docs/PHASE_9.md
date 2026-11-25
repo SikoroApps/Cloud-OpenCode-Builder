@@ -100,6 +100,38 @@ Earlier dependency-submission attempts `45649561354`, `45650183821`, `4565178466
 
 One Android CI run on intermediate commit `86d4c91`, [`45651784935`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45651784935), was **cancelled** because a newer push superseded its concurrency group. The final Android CI run above is green.
 
+## 8.1 Before downloading Cloud OpenCode Builder
+
+**Recommendation: do not distribute a production download yet.** The current APK evidence proves a
+debug build and a self-signed release pipeline, not a production release. Before installing or
+sharing a build, complete this checklist:
+
+1. **Choose the right artifact.** The debug APK has package `com.sikorokoro44.cloudopencode.debug`
+   and is for testing only. The signed release APK has package
+   `com.sikorokoro44.cloudopencode` but is currently self-signed and was built with the placeholder
+   backend URL `https://cloud-opencode-backend.example`.
+2. **Stand up a real backend.** Deploy the container behind HTTPS with a persistent `/data` volume,
+   then confirm `npm run check:deployment` returns no blockers and `https://<domain>/health` is 200.
+3. **Configure and prove OAuth.** Register the GitHub OAuth App with callback
+   `https://<domain>/api/github/oauth/callback`, set the backend secrets, complete a real browser
+   authorization, and confirm `/api/github/status` returns `connected: true`.
+4. **Configure a real provider key.** Add `OPENCODE_API_KEY` or `OPENROUTER_API_KEY` to the backend
+   secret store and run `npm run verify:ai -- --require-live` successfully through the unchanged
+   five-model chain.
+5. **Use a production signing identity.** Replace the self-signed key with a controlled release key,
+   store it only in GitHub Actions secrets, rebuild the release with the real `CLOUD_BASE_URL`, and
+   run the `Release readiness` workflow with `require_live=true`.
+6. **Verify the downloaded file.** Record the APK SHA-256, `apksigner verify --print-certs` result,
+   package name, version and source run ID. Install only that exact file.
+7. **Test on a physical device.** Confirm install, OAuth deep link, chat, repository connection,
+   build dispatch, APK download/open, image flows and background tasks on a real Android device.
+   The API 35 emulator smoke test is not physical-device proof.
+8. **User instructions.** Direct APK installs require allowing installation from the chosen source.
+   Tell testers to verify the checksum and not to enter production credentials into a debug build.
+
+Until items 2–7 are actually observed, the app should be treated as an evaluation build, not a
+production download.
+
 ## 9. Remaining blockers / NOT TESTED
 
 | Item | Status | Reason |

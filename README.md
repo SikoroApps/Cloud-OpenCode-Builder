@@ -230,3 +230,13 @@ Production backend deployment, live OAuth consent, live provider inference, prod
 identity, and physical-device verification remain explicitly **BLOCKED**/**NOT TESTED** because the
 required host, OAuth app, API keys, production key and device are not present here. See
 [`docs/PHASE_9.md`](docs/PHASE_9.md) for exact evidence, run IDs and unresolved blockers.
+
+### Before downloading for production use
+
+Do not distribute the current APK as a production release yet. The debug APK is test-only, and the
+signed APK is self-signed with the placeholder backend URL. First: deploy a real HTTPS backend,
+complete live GitHub OAuth consent, configure a provider key and pass `npm run verify:ai --
+--require-live`, switch to a production signing identity, rebuild with the real `CLOUD_BASE_URL`,
+pass `Release readiness` with `require_live=true`, verify the APK SHA-256/signature, and complete a
+physical-device smoke test. See the full checklist in
+[`docs/PHASE_9.md`](docs/PHASE_9.md#81-before-downloading-cloud-opencode-builder).
