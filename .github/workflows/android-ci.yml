@@ -246,7 +246,7 @@ jobs:
             nohup ./cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8080 > /tmp/cloudflared.log 2>&1 &
             echo $! > /tmp/cloudflared.pid
             for attempt in $(seq 1 40); do
-              TUNNEL_URL="$(grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' /tmp/cloudflared.log | head -n 1 || true)"
+              TUNNEL_URL="$(grep -aoE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' /tmp/cloudflared.log | head -n 1 || true)"
               if [ -n "$TUNNEL_URL" ] && curl --max-time 5 -fsS "$TUNNEL_URL/health" > /tmp/cloudflared-health.json 2>/dev/null; then
                 break
               fi
