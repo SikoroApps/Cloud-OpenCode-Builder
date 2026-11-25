@@ -162,6 +162,32 @@ The signed release workflow (`.github/workflows/android-release.yml`) is impleme
 secrets/variables exist. Physical-device verification also remains blocked because no `adb`-connected
 device is available; the API 35 emulator smoke test is green in CI but is not a physical device.
 
+### Signed release run (self-signed key)
+
+The release workflow was executed on `main` after storing a self-signed release keystore in GitHub
+Actions secrets (`gh secret set`, never committed) and passing the public backend URL as a workflow
+input. It succeeded: `Android signed release` run
+[`45629726291`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45629726291).
+
+- Signed APK: `app-release.apk`, **1,567,651 bytes**, SHA-256
+  `4b6bab61cb87e86aa64e53504a9166d558b3c3e31037203a95ed61414c7b52e4`.
+- `apksigner verify --verbose --print-certs`: **Verified**, APK Signature Scheme **v2** verified,
+  signer certificate `CN=Cloud OpenCode, OU=Release, O=SikoroApps, L=Internet, ST=Internet, C=US`,
+  certificate SHA-256 digest `374985d10e1c1c126bf39965782ba59b98a0a35f4b4c43e3b27013428185788e`,
+  RSA 4096-bit key.
+- `aapt dump badging`: package `com.sikorokoro44.cloudopencode`, versionCode 1, versionName 0.1.0,
+  `minSdkVersion 26`, `targetSdkVersion 35`, launchable activity
+  `com.sikorokoro44.cloudopencode.MainActivity`.
+
+The workflow initially failed with `KeytoolException: keystore not found` because AGP rejected the
+`android.injected.signing.store.type=keystore` value; the run now uses the valid KeyStore type `jks`
+and passes the keystore via the absolute path `ANDROID_KEYSTORE_PATH`. The final run is green.
+
+The signed APK is produced with a **self-signed release certificate** and with the backend URL
+`https://cloud-opencode-backend.example` supplied at build time, so it is not yet a production release
+backed by a real public HTTPS deployment. Live delivery against a real backend remains **BLOCKED**;
+the signature/release-pipeline step itself is **VERIFIED**.
+
 ## Phase 6–8 status — advanced features
 
 The advanced backlog is now split into three phases and implemented on top of the unchanged Phase 5

@@ -84,10 +84,20 @@ OpenRouter provider now fails fast with `openrouter_api_key_not_configured` inst
 invalid provider, sends `HTTP-Referer`/`X-Title` attribution headers, and maps provider errors for
 fallback decisions. Live OpenRouter inference remains blocked on `OPENROUTER_API_KEY`.
 
-**Signed APK release — workflow implemented, blocked on secrets.** `.github/workflows/android-release.yml`
+**Signed APK release — now run and verified (self-signed key).**
+`.github/workflows/android-release.yml`
 is manual-only, requires all four Android signing secrets plus an HTTPS `CLOUD_BASE_URL`, builds
 `assembleRelease` with injected signing, verifies with `apksigner`, and uploads the APK and evidence.
-It has not run because the repository secrets/variable are not configured.
+It has now run successfully (`Android signed release` run
+[`45629726291`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45629726291)) using a
+self-signed release keystore stored in repository Actions secrets. `apksigner verify --verbose
+--print-certs` reported **Verified** (APK Signature Scheme v2 verified, RSA 4096 signer); the signed
+APK is 1,567,651 bytes with SHA-256
+`4b6bab61cb87e86aa64e53504a9166d558b3c3e31037203a95ed61414c7b52e4`. The release run initially failed with
+`KeytoolException: keystore not found` and was fixed by using the valid KeyStore type `jks`; the
+successful run is the final state. The signed APK carries the build-time backend URL supplied as the
+workflow input (`https://cloud-opencode-backend.example`), so live delivery against a real public HTTPS
+backend remains BLOCKED; signature and release-pipeline verification itself are VERIFIED.
 
 **Physical device — blocked.** No `adb` binary or connected device is available locally. The API 35
 emulator smoke job is green in CI, but that is not physical-device verification.
@@ -149,7 +159,7 @@ emulator smoke job is green in CI, but that is not physical-device verification.
 | Permanent HTTPS backend | BLOCKED | No host/DNS/domain provided. |
 | Real GitHub OAuth callback | BLOCKED | No OAuth App/client ID/secret/browser consent. |
 | Real provider connectivity | PARTIAL | OpenCode probes and live DuckDuckGo/Pollinations in later phases; OpenRouter key missing. |
-| Signed APK generation/verification | BLOCKED | No signing secrets or live release run. |
+| Signed APK generation/verification | **VERIFIED (release pipeline, self-signed)** | Signed release run `45629726291` green; apksigner verified v2, SHA-256 `4b6bab...b52e4`, 1,567,651 bytes. Real public signing key / live backend delivery **BLOCKED**. |
 | Browser download link | IMPLEMENTED | Single-use 10-minute grant endpoint; no live signed artifact. |
 | Physical-device verification | BLOCKED | `scripts/verify-device.mjs` reports `adb_unavailable`. |
 
