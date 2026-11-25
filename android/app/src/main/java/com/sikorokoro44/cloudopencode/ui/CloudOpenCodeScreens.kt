@@ -193,6 +193,32 @@ private fun BuildsScreen(viewModel: CloudOpenCodeViewModel, state: CloudUiState)
             }
         }
         OutlinedTextField(state.buildLogs, {}, label = { Text("Build logs") }, modifier = Modifier.fillMaxWidth().weight(0.4f), readOnly = true)
+        Text("APK delivery", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp))
+        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(state.apkArtifactIdInput, viewModel::updateApkArtifactId, label = { Text("Artifact ID") }, modifier = Modifier.weight(1f))
+            Button(onClick = { state.selectedBuildId?.let { viewModel.refreshBuildArtifacts(it) } }) { Text("Load artifacts") }
+        }
+        LazyColumn(Modifier.weight(0.2f)) {
+            items(state.buildArtifacts) { artifact ->
+                TextButton(onClick = { viewModel.selectArtifact(artifact.id) }) {
+                    Text("${artifact.id}: ${artifact.name} (${artifact.sizeInBytes} bytes)")
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { viewModel.createApkDownloadLink() }, enabled = !state.apkDeliveryLoading) { Text("Create download link") }
+            Button(onClick = { viewModel.loadApkChecksum() }, enabled = !state.apkDeliveryLoading) { Text("Load checksum") }
+            Button(onClick = { viewModel.openApkDownload() }, enabled = state.apkDownloadUrl != null) { Text("Open link") }
+        }
+        state.apkDeliveryMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        state.apkDownloadUrl?.let { url -> Text("Download URL: $url", style = MaterialTheme.typography.bodySmall) }
+        state.apkDownloadExpiresAt?.let { expires -> Text("Link expires at: $expires", style = MaterialTheme.typography.bodySmall) }
+        state.apkChecksum?.let { checksum ->
+            Text("File: ${checksum.filename}", style = MaterialTheme.typography.bodySmall)
+            Text("Size: ${checksum.sizeInBytes} bytes", style = MaterialTheme.typography.bodySmall)
+            Text("SHA-256: ${checksum.sha256}", style = MaterialTheme.typography.bodySmall)
+        }
+        if (state.apkDeliveryLoading) CircularProgressIndicator(Modifier.padding(top = 8.dp))
     }
 }
 

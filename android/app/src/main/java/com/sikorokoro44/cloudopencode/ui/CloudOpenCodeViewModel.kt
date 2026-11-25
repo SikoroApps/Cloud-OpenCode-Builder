@@ -14,6 +14,9 @@ import com.sikorokoro44.cloudopencode.data.network.GithubStatus
 import com.sikorokoro44.cloudopencode.data.network.ProjectBuild
 import com.sikorokoro44.cloudopencode.data.network.ProjectCommit
 import com.sikorokoro44.cloudopencode.data.network.ProjectFile
+import com.sikorokoro44.cloudopencode.data.network.ApkChecksum
+import com.sikorokoro44.cloudopencode.data.network.ApkDownloadLink
+import com.sikorokoro44.cloudopencode.data.network.BuildArtifact
 import com.sikorokoro44.cloudopencode.data.network.WebSearchResponse
 import com.sikorokoro44.cloudopencode.security.EncryptedTokenStore
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,6 +52,15 @@ data class CloudUiState(
     val buildWorkflowPath: String = ".github/workflows/android-build.yml",
     val buildRef: String = "main",
     val buildLogs: String = "",
+    val buildArtifacts: List<BuildArtifact> = emptyList(),
+    val selectedBuildId: String? = null,
+    val selectedArtifactId: Long? = null,
+    val apkArtifactIdInput: String = "",
+    val apkDownloadUrl: String? = null,
+    val apkDownloadExpiresAt: Long? = null,
+    val apkChecksum: ApkChecksum? = null,
+    val apkDeliveryLoading: Boolean = false,
+    val apkDeliveryMessage: String? = null,
     val tasks: List<CloudTask> = emptyList(),
     val newTaskDescription: String = "",
     val images: List<CloudImage> = emptyList(),
@@ -392,4 +404,105 @@ class CloudOpenCodeViewModel(
     }
 
     fun openGithubOAuth() = startGithubOAuth()
+
+    fun updateApkArtifactId(value: String) = _state.update { it.copy(apkArtifactIdInput = value) }
+
+    fun selectBuildForDelivery(buildId: String) {
+        _state.update {
+            it.copy(
+                selectedBuildId = buildId,
+                buildArtifacts = emptyList(),
+                selectedArtifactId = null,
+                apkArtifactIdInput = "",
+                apkDownloadUrl = null,
+                apkDownloadExpiresAt = null,
+                apkChecksum = null,
+                apkDeliveryMessage = null,
+            )
+        }
+        refreshBuildArtifacts(buildId)
+    }
+
+    fun refreshBuildArtifacts(buildId: String = _state.value.selectedBuildId ?: return) {
+        val token = _state.value.token ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(apkDeliveryLoading = true, apkDeliveryMessage = null) }
+            client.buildArtifacts(token, buildId).onSuccess { artifacts ->
+                _state.update {
+                    it.copy(
+                        buildArtifacts = artifacts,
+                        selectedArtifactId = artifacts.firstOrNull()?.id,
+                        apkArtifactIdInput = artifacts.firstOrNull()?.id?.toString() ?: it.apkArtifactIdInput,
+                        apkDeliveryLoading = false,
+                        apkDeliveryMessage = if (artifacts.isEmpty()) "No artifacts available for this build" else null,
+                    )
+                }
+            }.onFailure {
+                _state.update { it.copy(apkDeliveryLoading = false, apkDeliveryMessage = "Unable to load build artifacts") }
+            }
+        }
+    }
+
+    fun selectArtifact(artifactId: Long) {
+        _state.update { it.copy(selectedArtifactId = artifactId, apkArtifactIdInput = artifactId.toString()) }
+    }
+
+    fun createApkDownloadLink() {
+        val token = _state.value.token ?: return
+        val buildId = _state.value.selectedBuildId ?: run {
+            _state.update { it.copy(apkDeliveryMessage = "Select a build first") }
+            return
+        }
+        val artifactId = _state.value.apkArtifactIdInput.toLongOrNull() ?: _state.value.selectedArtifactId ?: run {
+            _state.update { it.copy(apkDeliveryMessage = "Enter a valid artifact ID") }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(apkDeliveryLoading = true, apkDeliveryMessage = null) }
+            client.apkDownloadLink(token, buildId, artifactId).onSuccess { link ->
+                _state.update {
+                    it.copy(
+                        apkDownloadUrl = link.url,
+                        apkDownloadExpiresAt = link.expiresAt,
+                        apkDeliveryLoading = false,
+                        apkDeliveryMessage = "Download link created",
+                    )
+                }
+            }.onFailure {
+                _state.update { it.copy(apkDeliveryLoading = false, apkDeliveryMessage = "Download link unavailable for this build/artifact") }
+            }
+        }
+    }
+
+    fun loadApkChecksum() {
+        val token = _state.value.token ?: return
+        val buildId = _state.value.selectedBuildId ?: run {
+            _state.update { it.copy(apkDeliveryMessage = "Select a build first") }
+            return
+        }
+        val artifactId = _state.value.apkArtifactIdInput.toLongOrNull() ?: _state.value.selectedArtifactId ?: run {
+            _state.update { it.copy(apkDeliveryMessage = "Enter a valid artifact ID") }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(apkDeliveryLoading = true, apkDeliveryMessage = null) }
+            client.apkChecksum(token, buildId, artifactId).onSuccess { checksum ->
+                _state.update {
+                    it.copy(
+                        apkChecksum = checksum,
+                        apkDeliveryLoading = false,
+                        apkDeliveryMessage = "APK checksum loaded",
+                    )
+                }
+            }.onFailure {
+                _state.update { it.copy(apkDeliveryLoading = false, apkDeliveryMessage = "APK checksum unavailable") }
+            }
+        }
+    }
+
+    fun openApkDownload() {
+        val url = _state.value.apkDownloadUrl ?: return
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+        context.startActivity(intent)
+    }
 }

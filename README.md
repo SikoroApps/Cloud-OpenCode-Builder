@@ -119,6 +119,11 @@ APK and physical-device verification remain externally blocked; no such result i
 evidence. A real **debug** APK artifact from CI was downloaded and SHA-256 verified as a build
 artifact only (see `docs/PHASE_5.md`); it is not a signed production release.
 
+
+## Android client status
+
+The Android app now has a functional Compose client rather than a static shell. It supports authentication, chat, GitHub repository management, project file editing, commits, build monitoring, cloud tasks, and image generation. The Builds screen now connects to the backend's APK delivery endpoints, can load artifacts, create a time-limited browser-downloadable link, and display the APK filename, size, and SHA-256 checksum. Live verification of an actual downloadable APK still requires a successful GitHub Actions build and external signing/release configuration.
+
 ## Phase 6–8 status — advanced features
 
 The advanced backlog is now split into three phases and implemented on top of the unchanged Phase 5

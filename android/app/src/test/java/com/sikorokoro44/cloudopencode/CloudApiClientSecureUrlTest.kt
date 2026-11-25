@@ -26,4 +26,11 @@ class CloudApiClientSecureUrlTest {
         val insecure = CloudApiClientImpl("http://api.example.invalid")
         assertTrue(insecure.history("token", "session").isFailure)
     }
+    @Test
+    fun apkDownloadLinksMustUseHttps() {
+        val restricted = CloudApiClientImpl("https://api.example.invalid", setOf("api.example.invalid"))
+        assertTrue(restricted.isSecureUrl("https://api.example.invalid/api/projects/build/artifact?grant=abc"))
+        assertFalse(restricted.isSecureUrl("http://api.example.invalid/api/projects/build/artifact?grant=abc"))
+        assertFalse(restricted.isSecureUrl("https://evil.example.invalid/api/projects/build/artifact?grant=abc"))
+    }
 }

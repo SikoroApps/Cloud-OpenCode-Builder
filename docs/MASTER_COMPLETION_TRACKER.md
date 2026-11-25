@@ -35,6 +35,11 @@ verification; 2 of the 8 (Phases 7 and 8) have live feature-level verification.*
 release gates (OAuth consent, deployed HTTPS backend, signed APK, physical device) remain blocked.
 The project is **not** a finished production release.
 
+
+## Android APK delivery update
+
+The Android client now connects the Builds screen to `/api/projects/build/artifact`, `/api/projects/build/artifact/link`, and `/api/projects/build/artifact/checksum`. It can load artifacts, create a 10-minute single-use browser-downloadable APK link, open that link, and display APK filename, size, and SHA-256. This is implemented and covered by Android unit tests for HTTPS download-link validation; a live downloadable APK remains blocked on a successful signed release build.
+
 ## Phase 1 — Foundation
 
 | Requirement | Status | Evidence |
