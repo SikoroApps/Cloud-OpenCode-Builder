@@ -266,6 +266,18 @@ jobs:
           echo "HTTPS backend: $TUNNEL_URL"
           echo "CLOUD_BASE_URL=$TUNNEL_URL" >> "$GITHUB_ENV"
           echo "CLOUD_HOST_ALLOWLIST=$TUNNEL_HOST" >> "$GITHUB_ENV"
+      - name: Recheck HTTPS tunnel before device test
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 10); do
+            if curl --max-time 5 -fsS "$CLOUD_BASE_URL/health"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "HTTPS tunnel became unreachable before the device test"
+          cat /tmp/cloudflared.log
+          exit 1
       - name: Run Android HTTPS integration test
         uses: reactivecircus/android-emulator-runner@v2
         with:

@@ -16,7 +16,7 @@ class HttpsBackendIntegrationTest {
         val client = CloudApiClientImpl(baseUrl, setOf(host))
 
         assertTrue(client.isSecureUrl("$baseUrl/health"))
-        assertTrue("health request failed", client.health().isSuccess)
+        assertTrue("health request failed", waitForHealth(client))
 
         val email = "https-ci-${System.currentTimeMillis()}@example.invalid"
         val token = client.register(email, "password-1234").getOrThrow().token
@@ -69,5 +69,13 @@ class HttpsBackendIntegrationTest {
         assertEquals("cancelled", client.cancelTask(token, task.id).getOrThrow().status)
 
         assertTrue("logout failed", client.logout(token).isSuccess)
+    }
+
+    private fun waitForHealth(client: CloudApiClientImpl): Boolean {
+        repeat(6) { attempt ->
+            if (client.health().isSuccess) return true
+            if (attempt < 5) Thread.sleep(2_000)
+        }
+        return false
     }
 }
