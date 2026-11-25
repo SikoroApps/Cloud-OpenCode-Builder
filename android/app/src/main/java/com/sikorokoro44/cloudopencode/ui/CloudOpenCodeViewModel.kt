@@ -179,12 +179,25 @@ class CloudOpenCodeViewModel(
         viewModelScope.launch {
             client.githubOAuthStart(token).onSuccess { oauth ->
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(oauth.authorizationUrl)).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-                context.startActivity(intent)
-                _state.update { it.copy(message = "Complete GitHub authorization in the browser, then refresh status.") }
+                val opened = runCatching { context.startActivity(intent) }.isSuccess
+                _state.update {
+                    it.copy(
+                        message = if (opened) {
+                            "Complete GitHub authorization in the browser; the app will reconnect automatically."
+                        } else {
+                            "No browser available to start GitHub authorization"
+                        },
+                    )
+                }
             }.onFailure {
-                _state.update { it.copy(message = "Unable to start GitHub OAuth") }
+                _state.update { it.copy(message = "Unable to start GitHub OAuth; check backend GitHub configuration") }
             }
         }
+    }
+
+    fun handleGithubOAuthCallback(status: String?, error: String?) {
+        _state.update { it.copy(message = GithubOAuthResult.message(status, error)) }
+        if (GithubOAuthResult.isConnected(status)) refreshGithub()
     }
 
     fun createRepository() {
@@ -304,7 +317,19 @@ class CloudOpenCodeViewModel(
         viewModelScope.launch {
             _state.update { it.copy(loading = true) }
             client.startBuild(token, state.buildWorkflowPath, state.buildRef).onSuccess { build ->
-                _state.update { it.copy(loading = false, message = "Build started: ${build.id}") }
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        selectedBuildId = build.id,
+                        buildArtifacts = emptyList(),
+                        selectedArtifactId = null,
+                        apkArtifactIdInput = "",
+                        apkDownloadUrl = null,
+                        apkChecksum = null,
+                        apkDeliveryMessage = "Build started; APK delivery becomes available when it succeeds",
+                        message = "Build started: ${build.id}",
+                    )
+                }
                 refreshBuilds(token)
             }.onFailure {
                 _state.update { it.copy(loading = false, message = "Build start failed") }
@@ -408,6 +433,7 @@ class CloudOpenCodeViewModel(
     fun updateApkArtifactId(value: String) = _state.update { it.copy(apkArtifactIdInput = value) }
 
     fun selectBuildForDelivery(buildId: String) {
+        val build = _state.value.builds.firstOrNull { it.id == buildId }
         _state.update {
             it.copy(
                 selectedBuildId = buildId,
@@ -417,29 +443,42 @@ class CloudOpenCodeViewModel(
                 apkDownloadUrl = null,
                 apkDownloadExpiresAt = null,
                 apkChecksum = null,
-                apkDeliveryMessage = null,
+                apkDeliveryMessage = ApkDelivery.deliveryStatusMessage(build),
             )
         }
-        refreshBuildArtifacts(buildId)
+        if (ApkDelivery.buildReady(build)) refreshBuildArtifacts(buildId)
     }
 
     fun refreshBuildArtifacts(requestedBuildId: String? = null) {
-        val buildId = requestedBuildId ?: _state.value.selectedBuildId ?: return
+        val buildId = requestedBuildId ?: _state.value.selectedBuildId ?: run {
+            _state.update { it.copy(apkDeliveryMessage = "Select a successful build first") }
+            return
+        }
+        val build = _state.value.builds.firstOrNull { it.id == buildId }
+        if (build != null && !ApkDelivery.buildReady(build)) {
+            _state.update { it.copy(apkDeliveryMessage = ApkDelivery.deliveryStatusMessage(build)) }
+            return
+        }
         val token = _state.value.token ?: return
         viewModelScope.launch {
             _state.update { it.copy(apkDeliveryLoading = true, apkDeliveryMessage = null) }
             client.buildArtifacts(token, buildId).onSuccess { artifacts ->
+                val preferred = ApkDelivery.preferredArtifact(artifacts)
                 _state.update {
                     it.copy(
                         buildArtifacts = artifacts,
-                        selectedArtifactId = artifacts.firstOrNull()?.id,
-                        apkArtifactIdInput = artifacts.firstOrNull()?.id?.toString() ?: it.apkArtifactIdInput,
+                        selectedArtifactId = preferred?.id,
+                        apkArtifactIdInput = preferred?.id?.toString() ?: "",
                         apkDeliveryLoading = false,
-                        apkDeliveryMessage = if (artifacts.isEmpty()) "No artifacts available for this build" else null,
+                        apkDeliveryMessage = if (artifacts.isEmpty()) {
+                            "No artifacts available for this build"
+                        } else {
+                            "Loaded ${artifacts.size} artifact(s); selected ${preferred?.name ?: "none"}"
+                        },
                     )
                 }
             }.onFailure {
-                _state.update { it.copy(apkDeliveryLoading = false, apkDeliveryMessage = "Unable to load build artifacts") }
+                _state.update { it.copy(apkDeliveryLoading = false, apkDeliveryMessage = "Unable to load build artifacts; make sure the build succeeded and the workflow uploaded an APK") }
             }
         }
     }
@@ -452,6 +491,11 @@ class CloudOpenCodeViewModel(
         val token = _state.value.token ?: return
         val buildId = _state.value.selectedBuildId ?: run {
             _state.update { it.copy(apkDeliveryMessage = "Select a build first") }
+            return
+        }
+        val build = _state.value.builds.firstOrNull { it.id == buildId }
+        if (!ApkDelivery.buildReady(build)) {
+            _state.update { it.copy(apkDeliveryMessage = ApkDelivery.deliveryStatusMessage(build)) }
             return
         }
         val artifactId = _state.value.apkArtifactIdInput.toLongOrNull() ?: _state.value.selectedArtifactId ?: run {
@@ -481,6 +525,11 @@ class CloudOpenCodeViewModel(
             _state.update { it.copy(apkDeliveryMessage = "Select a build first") }
             return
         }
+        val build = _state.value.builds.firstOrNull { it.id == buildId }
+        if (!ApkDelivery.buildReady(build)) {
+            _state.update { it.copy(apkDeliveryMessage = ApkDelivery.deliveryStatusMessage(build)) }
+            return
+        }
         val artifactId = _state.value.apkArtifactIdInput.toLongOrNull() ?: _state.value.selectedArtifactId ?: run {
             _state.update { it.copy(apkDeliveryMessage = "Enter a valid artifact ID") }
             return
@@ -502,8 +551,19 @@ class CloudOpenCodeViewModel(
     }
 
     fun openApkDownload() {
-        val url = _state.value.apkDownloadUrl ?: return
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-        context.startActivity(intent)
+        val url = _state.value.apkDownloadUrl ?: run {
+            _state.update { it.copy(apkDeliveryMessage = "Create a download link first") }
+            return
+        }
+        if (!url.startsWith("https://") && !url.startsWith("http://")) {
+            _state.update { it.copy(apkDeliveryMessage = "Refusing to open a non-HTTP download link") }
+            return
+        }
+        runCatching {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+            context.startActivity(intent)
+        }.onFailure {
+            _state.update { it.copy(apkDeliveryMessage = "No browser available to open the APK download link") }
+        }
     }
 }
