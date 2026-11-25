@@ -27,18 +27,53 @@ Status vocabulary:
 | Phase 7 — Image generation | **COMPLETE** | 3 module tests + HTTP generation test; live Pollinations JPEG generated, stored, re-read after restart and SHA-256 matched. |
 | Phase 8 — Web search and persistent tasks | **COMPLETE** | 5 tests; live DuckDuckGo search returned real results; tasks persisted across a real backend restart. |
 
-Backend automated test suite after Phases 6–8: **74 passed, 0 failed** (`cd cloud && npm test`).
-This includes all earlier phase tests; no test was removed or weakened.
+Backend automated test suite after the APK-delivery/OAuth/provider work: **88 passed, 0 failed**
+(`cd cloud && npm test`). This includes all earlier phase tests plus new provider, release-workflow
+and APK-delivery tests; no test was removed or weakened.
 
-Rough verified-requirement completion: **7 of 8 phase areas have complete or implemented automated
-verification; 2 of the 8 (Phases 7 and 8) have live feature-level verification.** Live production
-release gates (OAuth consent, deployed HTTPS backend, signed APK, physical device) remain blocked.
-The project is **not** a finished production release.
+Rough verified-requirement completion: **8 of 8 phase areas have complete or implemented automated
+verification; Phases 7 and 8 and debug APK delivery have live feature-level verification.** Live
+production release gates (OAuth consent, deployed HTTPS backend, signed APK, physical device) remain
+blocked. The project is **not** a finished production release.
 
 
-## Android APK delivery update
+## Android APK delivery, OAuth and release update
 
-The Android client now connects the Builds screen to `/api/projects/build/artifact`, `/api/projects/build/artifact/link`, and `/api/projects/build/artifact/checksum`. It can load artifacts, create a 10-minute single-use browser-downloadable APK link, open that link, and display APK filename, size, and SHA-256. This is implemented and covered by Android unit tests for HTTPS download-link validation; a live downloadable APK remains blocked on a successful signed release build.
+**APK delivery — live verified (debug APK).** The Builds screen calls
+`/api/projects/build/artifacts`, selects the APK artifact, then uses
+`/api/projects/build/artifact/link` and `/api/projects/build/artifact/checksum`. The generated link is
+a 10-minute, single-use browser URL that needs no GitHub token or Authorization header. Verification
+on commit `3c084b7`, `Android CI` run
+[`45596731820`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45596731820)
+(all jobs green), artifact `15013596629` (`cloud-opencode-debug`):
+
+- downloaded `app-debug.apk` via the grant link with **no Authorization header**;
+- size **10,251,891 bytes**;
+- SHA-256 `e26da391e078e3b6c1c2e6dfe3e83d125afbf9ec601cda393bdfe723469eab42`, identical in the
+  `X-APK-Sha256` header, the checksum endpoint, and `sha256sum` of the saved file;
+- `Content-Type: application/vnd.android.package-archive`, `Content-Disposition: attachment`;
+- a replayed grant returned `403`, and an unauthenticated request without a grant returned `401`;
+- 20 of 20 end-to-end delivery checks passed (`cloud/scripts/verify-apk-delivery.mjs`).
+
+This proves browser APK delivery for a **debug** artifact. It is not a signed production release.
+
+**GitHub OAuth — implemented, live consent still blocked.** The app declares the
+`cloudopencode://github/callback` deep link, handles `onCreate`/`onNewIntent`, refreshes GitHub status
+after a successful callback, and maps denial/scope/state errors to actionable messages. Live OAuth
+still requires a real OAuth App, an HTTPS callback domain, a deployed backend and browser consent.
+
+**OpenRouter free models — implemented and hardened.** The five-model chain is unchanged. The
+OpenRouter provider now fails fast with `openrouter_api_key_not_configured` instead of constructing an
+invalid provider, sends `HTTP-Referer`/`X-Title` attribution headers, and maps provider errors for
+fallback decisions. Live OpenRouter inference remains blocked on `OPENROUTER_API_KEY`.
+
+**Signed APK release — workflow implemented, blocked on secrets.** `.github/workflows/android-release.yml`
+is manual-only, requires all four Android signing secrets plus an HTTPS `CLOUD_BASE_URL`, builds
+`assembleRelease` with injected signing, verifies with `apksigner`, and uploads the APK and evidence.
+It has not run because the repository secrets/variable are not configured.
+
+**Physical device — blocked.** No `adb` binary or connected device is available locally. The API 35
+emulator smoke job is green in CI, but that is not physical-device verification.
 
 ## Phase 1 — Foundation
 
@@ -47,7 +82,7 @@ The Android client now connects the Builds screen to `/api/projects/build/artifa
 | Kotlin + Jetpack Compose structure | COMPLETE | `android/app/src/main/java/.../MainActivity.kt`, Gradle Compose plugins. |
 | MinSdk 26 / target 35 / package identity | COMPLETE | `android/app/build.gradle.kts`; debug package `com.sikorokoro44.cloudopencode.debug`. |
 | Launcher icon | COMPLETE | Adaptive icon resources in `res/mipmap-anydpi-v26` and `res/drawable`. |
-| Unit tests | COMPLETE | `BuildConfigurationTest`, `CloudApiClientSecureUrlTest`; historical CI green. |
+| Unit tests | COMPLETE | `BuildConfigurationTest`, `CloudApiClientSecureUrlTest`, `ApkDeliveryTest`, `GithubOAuthResultTest`; `Android CI` `45596731820` green. |
 | Lint | COMPLETE | `./gradlew lintDebug` in `Android CI`. |
 | Emulator launch smoke test | COMPLETE | API 35 emulator job `Emulator app-launch smoke test`. |
 | Debug APK assembly | COMPLETE | Historical artifact, SHA-256 in `docs/PROGRESS.md`. |

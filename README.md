@@ -116,13 +116,33 @@ GHCR image-publish workflow and a Compose/Caddy single-host HTTPS deployment sha
 `.github/workflows/publish-backend-image.yml` and `deploy/`; they are artifacts, not a live deployment.
 Live OAuth, a deployed HTTPS backend, an application-dispatched GitHub Actions run, a real signed
 APK and physical-device verification remain externally blocked; no such result is claimed without
-evidence. A real **debug** APK artifact from CI was downloaded and SHA-256 verified as a build
-artifact only (see `docs/PHASE_5.md`); it is not a signed production release.
+evidence. A real **debug** APK artifact from CI was downloaded through the backend's one-time
+browser-download link and SHA-256 verified (see the Android client status below); it is not a signed
+production release.
 
 
 ## Android client status
 
-The Android app now has a functional Compose client rather than a static shell. It supports authentication, chat, GitHub repository management, project file editing, commits, build monitoring, cloud tasks, and image generation. The Builds screen now connects to the backend's APK delivery endpoints, can load artifacts, create a time-limited browser-downloadable link, and display the APK filename, size, and SHA-256 checksum. Live verification of an actual downloadable APK still requires a successful GitHub Actions build and external signing/release configuration.
+The Android app now has a functional Compose client rather than a static shell. It supports
+authentication, chat, GitHub repository management, project file editing, commits, build monitoring,
+cloud tasks, and image generation. The Builds screen loads artifacts for a successful build, selects
+the APK artifact automatically, creates a 10-minute single-use browser-downloadable link, opens it,
+and displays build status, APK filename, size, expiry, and SHA-256. The GitHub tab starts OAuth and
+the app now handles the `cloudopencode://github/callback` deep link to refresh connection state.
+
+**APK delivery is live-verified** on implementation commit `3c084b7` against `Android CI` run
+`45596731820` (all jobs green). The backend created a grant link for artifact `15013596629`
+(`cloud-opencode-debug`) and the link was downloaded **without any Authorization header**. The
+downloaded `app-debug.apk` is **10,251,891 bytes** with SHA-256
+`e26da391e078e3b6c1c2e6dfe3e83d125afbf9ec601cda393bdfe723469eab42`; the checksum endpoint returned
+the same value, the response used `Content-Type: application/vnd.android.package-archive`, the grant
+was single-use, and all 20 delivery checks passed. This is a debug APK, not a signed release.
+
+The signed release workflow (`.github/workflows/android-release.yml`) is implemented and gated on
+`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`,
+`ANDROID_KEY_PASSWORD`, and a public `CLOUD_BASE_URL`. It cannot be run until those repository
+secrets/variables exist. Physical-device verification also remains blocked because no `adb`-connected
+device is available; the API 35 emulator smoke test is green in CI but is not a physical device.
 
 ## Phase 6–8 status — advanced features
 
