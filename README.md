@@ -13,20 +13,22 @@ download signed APKs. Cloud tasks continue running even when the user's phone di
 
 ## Current verification checkpoint
 
-- Source HEAD: `73d4289`; every workflow below is green on this commit.
-- `Android CI` run `45622989945`: unit tests, lint, debug APK, API 35 emulator smoke test and
-  HTTPS backend integration all passed.
-- `Cloud Backend CI` run `45622989755`: **95 tests passed, 0 failed** at that checkpoint; the
-  bounded artifact-body hardening below adds one more test (96 total).
-- `Publish backend image` `45622989500`, `Dependency audit` `45622989569` and
-  `Submit dependency graph` `45622989468` all succeeded.
-- Debug APK delivery was re-verified end-to-end on this HEAD: artifact `15027061074`
-  (`cloud-opencode-debug`), `app-debug.apk` **10,333,811 bytes**, SHA-256
+- Final code checkpoint: `05b1a82`; all five push workflows are green on this commit. See
+  [`docs/FINAL_AUDIT_REPORT.md`](docs/FINAL_AUDIT_REPORT.md) for the complete 8-phase audit.
+- `Android CI` [`45636326703`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45636326703)
+  attempt 2: unit tests, lint, debug APK, API 35 emulator smoke test and HTTPS backend integration
+  all passed. Attempt 1 failed on a Cloudflare quick-tunnel 429 and is documented in the report.
+- `Cloud Backend CI` [`45636326609`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45636326609):
+  **96 tests passed, 0 failed**.
+- `Publish backend image` `45636326618`, `Dependency audit` `45636326512` and
+  `Submit dependency graph` `45636326557` all succeeded.
+- Debug APK delivery was re-verified end-to-end on code checkpoint `73d4289`: artifact
+  `15027061074` (`cloud-opencode-debug`), `app-debug.apk` **10,333,811 bytes**, SHA-256
   `6b65de0f61e50e30a342cb006e0f76232402a9d587d3e56af0b26abcfebccc71`. All 20 delivery checks
   passed, including download without an `Authorization` header and a rejected single-use grant
   replay (403).
-- That artifact is a **debug** APK, not a signed production release. Signed release remains gated
-  on four signing secrets plus an HTTPS `CLOUD_BASE_URL`, as described below.
+- That artifact is a **debug** APK. A self-signed signed release was also produced and verified;
+  production signing and a real public HTTPS backend remain blocked, as described below.
 
 ## AI model system
 
@@ -148,7 +150,7 @@ the APK artifact automatically, creates a 10-minute single-use browser-downloada
 and displays build status, APK filename, size, expiry, and SHA-256. The GitHub tab starts OAuth and
 the app now handles the `cloudopencode://github/callback` deep link to refresh connection state.
 
-**APK delivery is live-verified** on the current HEAD `73d4289` against `Android CI` run
+**APK delivery is live-verified** on code checkpoint `73d4289` against `Android CI` run
 `45622989945` (all jobs green). The backend created a grant link for artifact `15027061074`
 (`cloud-opencode-debug`) and the link was downloaded **without any Authorization header**. The
 downloaded `app-debug.apk` is **10,333,811 bytes** with SHA-256

@@ -32,17 +32,19 @@ passed, 0 failed** (`cd cloud && npm test`). This includes all earlier phase tes
 release-workflow, APK-delivery, atomic-grant, Android-scaffold and bounded artifact-body tests; no
 test was removed or weakened.
 
-### Current HEAD verification (`73d4289`)
+### Final code checkpoint verification (`05b1a82`)
 
-- `Android CI` [`45622989945`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45622989945)
-  — unit tests, lint, debug APK, API 35 emulator smoke and HTTPS integration all green.
-- `Cloud Backend CI` [`45622989755`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45622989755)
-  — 95/95 backend tests at that checkpoint; the bounded artifact-body hardening adds one more test
-  (96 total).
-- `Publish backend image` `45622989500`, `Dependency audit` `45622989569`,
-  `Submit dependency graph` `45622989468` — all green.
-- Debug APK delivery re-verified on this HEAD: artifact `15027061074`, `app-debug.apk`
-  **10,333,811 bytes**, SHA-256
+- `Android CI` [`45636326703`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45636326703)
+  attempt 2 — unit tests, lint, debug APK, API 35 emulator smoke and HTTPS integration all green.
+  Attempt 1 failed on a Cloudflare quick-tunnel 429; an earlier run `45634661611` failed when a
+  binary tunnel log broke URL extraction. Both were fixed and are documented in
+  [`FINAL_AUDIT_REPORT.md`](FINAL_AUDIT_REPORT.md).
+- `Cloud Backend CI` [`45636326609`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45636326609)
+  — 96/96 backend tests.
+- `Publish backend image` `45636326618`, `Dependency audit` `45636326512`,
+  `Submit dependency graph` `45636326557` — all green.
+- Debug APK delivery re-verified on code checkpoint `73d4289`: artifact `15027061074`,
+  `app-debug.apk` **10,333,811 bytes**, SHA-256
   `6b65de0f61e50e30a342cb006e0f76232402a9d587d3e56af0b26abcfebccc71`, 20/20 checks, no
   `Authorization` header, grant replay `403`.
 
@@ -60,7 +62,7 @@ but the project is **not** a finished production release.
 `/api/projects/build/artifact/link` and `/api/projects/build/artifact/checksum`. The generated link is
 a 10-minute, single-use browser URL that needs no GitHub token or Authorization header. Grants are
 consumed with a single atomic `DELETE ... RETURNING` so two concurrent requests cannot both succeed.
-Verification on current HEAD `73d4289`, `Android CI` run
+Verification on code checkpoint `73d4289`, `Android CI` run
 [`45622989945`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45622989945)
 (all jobs green), artifact `15027061074` (`cloud-opencode-debug`):
 
@@ -286,9 +288,10 @@ It remains a debug artifact, not a signed release APK.
 2. **GitHub OAuth App client ID/secret and browser consent** — required for live OAuth, repository
    connection, commits and Actions dispatch.
 3. **`OPENROUTER_API_KEY`** — required for live image understanding and OpenRouter text fallback.
-4. **Android signing secrets** (`ANDROID_KEYSTORE_BASE64`, password, alias, key password) — required
-   for a real signed production APK.
-5. **A successful real release workflow run** — required for signed APK evidence and browser download.
+4. **A production Android signing identity** — self-signed signing secrets and a successful release
+   run now exist; a real production key is still required for production distribution.
+5. **A successful release run against a real public HTTPS backend** — the release pipeline and
+   self-signed signature are verified; live browser delivery against the real backend is still blocked.
 6. **A physical Android device with `adb`** — required for physical-device verification; the checker
    currently returns `adb_unavailable`.
 7. **Optional hardening** — request rate limiting and a dependency audit in an environment with
@@ -302,13 +305,15 @@ after the named evidence exists; blockers remain explicit.
 | Milestone | Status | Evidence / blocker |
 | --- | --- | --- |
 | Dependency vulnerability audit | IMPLEMENTED (locally verified; CI confirmed) | Backend has zero npm dependencies; `npm audit --omit=dev --audit-level=high` reported 0 vulnerabilities on 2026-11-25. `scripts/audit-dependencies.mjs` queried OSV for 14 pinned Gradle coordinates: 0 findings after bumping `org.json:json` from `20240303` to `20260814` (GHSA-ghc9-756g-vrcv) and Kotlin plugin from `2.0.21` to `2.4.21` (GHSA-r937-wjx7-w2jp). GitHub vulnerability alerts enabled. CI: Dependency audit `45515748155` and Android CI `45517043317` succeeded on `79828dc`; dependency-graph workflow needed `build-root-directory: android` and must pass again after that fix. |
-| API rate limiting and abuse protection | IMPLEMENTED (locally verified; CI pending) | Dependency-free fixed-window limiter added for auth, OAuth start, chat/search/image analysis, image generation/tasks and general API traffic; proxy headers honoured only with `TRUST_PROXY=1`; 429 + `Retry-After` and `X-RateLimit-*` headers. New unit/HTTP tests brought the local suite to **79 passed, 0 failed**. |
-| GitHub OAuth and repository permission review | IMPLEMENTED (live **BLOCKED**) | Reviewed one-time hashed state, 10-minute expiry, token exchange/encryption/revocation, repo permission checks and per-user project scoping. Fixed a real gap: the callback now verifies that `public_repo` and `workflow` were granted, revokes and rejects reduced-scope tokens, and a regression test covers it. Local suite now **80 passed, 0 failed**. Live browser consent still requires an OAuth App and HTTPS deployment. |
+| API rate limiting and abuse protection | IMPLEMENTED (locally verified; CI pending) | Dependency-free fixed-window limiter added for auth, OAuth start, chat/search/image analysis, image generation/tasks and general API traffic; proxy headers honoured only with `TRUST_PROXY=1`; 429 + `Retry-After` and `X-RateLimit-*` headers. The suite has grown to **96 passed, 0 failed**. |
+| GitHub OAuth and repository permission review | IMPLEMENTED (live **BLOCKED**) | Reviewed one-time hashed state, 10-minute expiry, token exchange/encryption/revocation, repo permission checks and per-user project scoping. Fixed a real gap: the callback now verifies that `public_repo` and `workflow` were granted, revokes and rejects reduced-scope tokens, and a regression test covers it. Live browser consent still requires an OAuth App and HTTPS deployment. |
 
 ## Next action to reach a production release
 
 Provide the six external items above. Then run the documented sequence in `docs/DEPLOYMENT.md`:
 deploy the container behind HTTPS, configure the OAuth callback, connect a repository, dispatch the
-release workflow with signing secrets, verify the APK evidence endpoint, and install the signed APK on
-a physical device. No further architectural phase is required for Phases 1–8; the remaining work is
-credentialed deployment, live acceptance and device verification.
+release workflow with the production signing identity, verify the APK evidence endpoint, and install
+the signed APK on a physical device. A self-signed release run has already validated the pipeline;
+the remaining work is production credentials, live acceptance and device verification. No further
+architectural phase is required for Phases 1–8; remaining feature gaps are listed in
+[`FINAL_AUDIT_REPORT.md`](FINAL_AUDIT_REPORT.md) §15.
