@@ -26,7 +26,7 @@ jobs:
           distribution: temurin
           java-version: '17'
       - name: Set up Gradle build cache
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
       - name: Locate Android SDK command-line tools
         id: sdk
         shell: bash
@@ -125,7 +125,7 @@ jobs:
           distribution: temurin
           java-version: '17'
       - name: Set up Gradle build cache
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
       - name: Locate Android SDK command-line tools
         id: sdk
         shell: bash
@@ -186,7 +186,7 @@ jobs:
         with:
           node-version: 22
       - name: Set up Gradle build cache
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
       - name: Locate Android SDK command-line tools
         id: sdk
         shell: bash
