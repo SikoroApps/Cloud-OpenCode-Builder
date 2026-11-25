@@ -103,6 +103,18 @@ test("release readiness workflow is manual and injects credentials by reference"
   assert.equal(/sk-[A-Za-z0-9]{10,}/.test(workflow), false);
 });
 
+test("APK evidence workflow verifies the exact artifact and rejects placeholder backend", () => {
+  const workflow = read(".github/workflows/apk-evidence.yml");
+  assert.equal(workflow.includes("workflow_dispatch:"), true);
+  assert.equal(workflow.includes("cloud-opencode-debug"), true);
+  assert.equal(workflow.includes("aapt dump badging"), true);
+  assert.equal(workflow.includes("apksigner verify --verbose --print-certs"), true);
+  assert.equal(workflow.includes("sha256sum"), true);
+  assert.equal(workflow.includes("cloud-opencode-backend.example"), true);
+  assert.equal(workflow.includes("build_config_test=PASSED"), true);
+  assert.equal(workflow.includes('"${{ inputs.run_id }}"'), false);
+});
+
 test("deploy file checker passes the hardened single-host runtime shape", () => {
   const result = run(script("../scripts/check-deploy-files.mjs"));
   assert.equal(result.status, 0);

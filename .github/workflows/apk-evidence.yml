@@ -1,0 +1,102 @@
+name: APK evidence
+
+# Manual-only evidence check for an exact Actions artifact. It downloads the named APK,
+# verifies package/version/checksum/signature and rejects the placeholder backend string.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Android CI run ID containing the cloud-opencode-debug artifact
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: apk-evidence-${{ inputs.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download exact APK and unit-test evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          set -euo pipefail
+          echo "RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+          APK_ID="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts" \
+            --jq '.artifacts[] | select(.name=="cloud-opencode-debug") | .id' | head -n 1)"
+          TEST_ID="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts" \
+            --jq '.artifacts[] | select(.name=="cloud-opencode-unit-test-results") | .id' | head -n 1)"
+          test -n "$APK_ID"
+          echo "ARTIFACT_ID=$APK_ID" >> "$GITHUB_ENV"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$APK_ID/zip" > apk.zip
+          unzip -oq apk.zip -d apk
+          test -s apk/app-debug.apk
+          if [ -n "$TEST_ID" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$TEST_ID/zip" > unit-tests.zip
+            unzip -oq unit-tests.zip -d unit-results
+          fi
+
+      - name: Verify package, version, checksum, signature and backend config
+        run: |
+          set -euo pipefail
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -n "$AAPT"
+          test -n "$APKSIGNER"
+          BADGING="$("$AAPT" dump badging apk/app-debug.apk)"
+          PACKAGE="$(printf '%s\n' "$BADGING" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")"
+          VERSION="$(printf '%s\n' "$BADGING" | sed -n "s/^package:.*versionName='\([^']*\)'.*/\1/p")"
+          SHA="$(sha256sum apk/app-debug.apk | awk '{print $1}')"
+          {
+            echo "source_run_id=$RUN_ID"
+            echo "artifact_id=$ARTIFACT_ID"
+            echo "filename=app-debug.apk"
+            echo "size_bytes=$(stat -c '%s' apk/app-debug.apk)"
+            echo "sha256=$SHA"
+            echo "package=$PACKAGE"
+            echo "version_name=$VERSION"
+            echo "--- aapt dump badging ---"
+            printf '%s\n' "$BADGING"
+            echo "--- apksigner verify --verbose --print-certs ---"
+            "$APKSIGNER" verify --verbose --print-certs apk/app-debug.apk
+            echo "--- placeholder backend scan ---"
+            if unzip -p apk/app-debug.apk 'classes*.dex' 'resources.arsc' | strings | grep -Fq 'cloud-opencode-backend.example'; then
+              echo "placeholder_backend=FOUND"
+            else
+              echo "placeholder_backend=NOT_FOUND"
+            fi
+            echo "--- build configuration unit test ---"
+            TEST_XML="unit-results/TEST-com.sikorokoro44.cloudopencode.BuildConfigurationTest.xml"
+            if [ -f "$TEST_XML" ] && grep -q 'failures="0"' "$TEST_XML" && grep -q 'errors="0"' "$TEST_XML"; then
+              echo "build_config_test=PASSED"
+            else
+              echo "build_config_test=FAILED"
+            fi
+          } | tee apk-evidence.txt
+
+      - name: Assert verified APK properties
+        run: |
+          set -euo pipefail
+          test "$(grep -a '^package=' apk-evidence.txt | cut -d= -f2)" = "com.sikorokoro44.cloudopencode.debug"
+          test "$(grep -a '^version_name=' apk-evidence.txt | cut -d= -f2)" = "0.1.0"
+          grep -q 'placeholder_backend=NOT_FOUND' apk-evidence.txt
+          grep -q 'build_config_test=PASSED' apk-evidence.txt
+          grep -q 'Verifies' apk-evidence.txt
+          grep -q 'Verified using' apk-evidence.txt
+          echo "APK evidence assertions passed."
+
+      - name: Upload APK evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-evidence
+          path: apk-evidence.txt
+          if-no-files-found: error
