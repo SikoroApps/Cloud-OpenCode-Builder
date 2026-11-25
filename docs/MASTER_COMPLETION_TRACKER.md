@@ -304,13 +304,33 @@ after the named evidence exists; blockers remain explicit.
 
 | Milestone | Status | Evidence / blocker |
 | --- | --- | --- |
-| Dependency vulnerability audit | IMPLEMENTED (locally verified; CI confirmed) | Backend has zero npm dependencies; `npm audit --omit=dev --audit-level=high` reported 0 vulnerabilities on 2026-11-25. `scripts/audit-dependencies.mjs` queried OSV for 14 pinned Gradle coordinates: 0 findings after bumping `org.json:json` from `20240303` to `20260814` (GHSA-ghc9-756g-vrcv) and Kotlin plugin from `2.0.21` to `2.4.21` (GHSA-r937-wjx7-w2jp). GitHub vulnerability alerts enabled. CI: Dependency audit `45515748155` and Android CI `45517043317` succeeded on `79828dc`; dependency-graph workflow needed `build-root-directory: android` and must pass again after that fix. |
-| API rate limiting and abuse protection | IMPLEMENTED (locally verified; CI pending) | Dependency-free fixed-window limiter added for auth, OAuth start, chat/search/image analysis, image generation/tasks and general API traffic; proxy headers honoured only with `TRUST_PROXY=1`; 429 + `Retry-After` and `X-RateLimit-*` headers. The suite has grown to **96 passed, 0 failed**. |
+| Dependency vulnerability audit | IMPLEMENTED (locally verified; CI confirmed) | Backend has zero npm dependencies; `npm audit --omit=dev --audit-level=high` reported 0 vulnerabilities on 2026-11-25. `scripts/audit-dependencies.mjs` queried OSV for 14 pinned Gradle coordinates: 0 findings after bumping `org.json:json` from `20240303` to `20260814` (GHSA-ghc9-756g-vrcv) and Kotlin plugin from `2.0.21` to `2.4.21` (GHSA-r937-wjx7-w2jp). GitHub vulnerability alerts enabled. CI: Dependency audit `45515748155` and Android CI `45517043317` succeeded on `79828dc`; dependency-graph workflow was fixed with `build-root-directory: android` and later passed on final Phase 9 checkpoint `5a0def3` (`45652195047`, attempt 2). |
+| API rate limiting and abuse protection | IMPLEMENTED (locally verified; CI confirmed) | Dependency-free fixed-window limiter added for auth, OAuth start, chat/search/image analysis, image generation/tasks and general API traffic; proxy headers honoured only with `TRUST_PROXY=1`; 429 + `Retry-After` and `X-RateLimit-*` headers. The final Phase 9 suite is **118 passed, 0 failed** on `5a0def3`. |
 | GitHub OAuth and repository permission review | IMPLEMENTED (live **BLOCKED**) | Reviewed one-time hashed state, 10-minute expiry, token exchange/encryption/revocation, repo permission checks and per-user project scoping. Fixed a real gap: the callback now verifies that `public_repo` and `workflow` were granted, revokes and rejects reduced-scope tokens, and a regression test covers it. Live browser consent still requires an OAuth App and HTTPS deployment. |
+
+## Phase 9 — production readiness (2026-11-25)
+
+Final Phase 9 checkpoint: `5a0def3`. Full evidence is in [`PHASE_9.md`](PHASE_9.md).
+
+| Requirement / item | Status | Evidence / blocker |
+| --- | --- | --- |
+| Preserve Phases 1–8 and exact five-model fallback order | **VERIFIED** | Regression test asserts all five IDs in order; Android and backend CI green. |
+| Production config/deployment hardening | **IMPLEMENTED** | Readiness/deploy-file checks, HTTPS fail-fast validation, OAuth callback host/path/scheme validation, loopback-only backend, Caddy HSTS. |
+| Secret-safe tooling and workflows | **IMPLEMENTED** | Key generator, masked AI verifier, masked release gate, `production-readiness.yml`, `live-ai-verification.yml`, `release-readiness.yml`; no values in source/logs. |
+| Backend tests after each batch | **VERIFIED** | 98/98 → 105/105 → 111/111 → 118/118, 0 failures each. |
+| Final push CI | **VERIFIED** | Android CI `45652195081`, Cloud Backend CI `45652195102`, Production readiness `45652195282`, Dependency audit `45652195100`, Publish image `45652194998`, Dependency graph `45652195047` attempt 2. |
+| Live AI verification | **BLOCKED** honestly | Manual run `45653061448` completed with status `BLOCKED`: no provider keys. |
+| Release readiness | **BLOCKED** honestly | Manual run `45653254004` completed with status `BLOCKED`: no backend URL/provider keys and no secret-list token; local run confirmed four signing secret names are present. |
+| Permanent HTTPS deployment, live OAuth, production signing identity, physical device | **BLOCKED / NOT TESTED** | External host/DNS, OAuth App/browser consent, provider keys, production key and device are absent. |
+
+Earlier dependency-submission attempts `45649561354`, `45650183821`, `45651784661` and
+`45652195047` attempt 1 are retained as **FAILED** GitHub API/rerun failures; the final run passed
+on retry and no failure was hidden. Intermediate Android CI run `45651784935` was **cancelled** by
+concurrency after a newer push.
 
 ## Next action to reach a production release
 
-Provide the six external items above. Then run the documented sequence in `docs/DEPLOYMENT.md`:
+Provide the external items above. Then run the documented sequence in `docs/DEPLOYMENT.md`:
 deploy the container behind HTTPS, configure the OAuth callback, connect a repository, dispatch the
 release workflow with the production signing identity, verify the APK evidence endpoint, and install
 the signed APK on a physical device. A self-signed release run has already validated the pipeline;

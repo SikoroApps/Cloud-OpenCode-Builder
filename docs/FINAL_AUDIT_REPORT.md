@@ -1,7 +1,8 @@
-# Final 8-phase audit report
+# Final audit report (Phases 1–9)
 
 Date: 2026-11-25  
-Final code checkpoint: `05b1a82609c5c026328ab8e4821a214a91ad91fb` (`main`)  
+Audited 8-phase code checkpoint: `05b1a82609c5c026328ab8e4821a214a91ad91fb` (`main`)<br>
+Final Phase 9 code checkpoint: `5a0def3` (see §16)<br>
 Repository: `SikoroApps/Cloud-OpenCode-Builder` (push remote `sikorokoro44/Cloud-OpenCode-Builder`)
 
 Status vocabulary: **VERIFIED**, **IMPLEMENTED**, **BLOCKED**, **FAILED**, **NOT TESTED**.  
@@ -203,13 +204,38 @@ pipeline/signature verification, **not** a production release.
 | PKCE | **NOT TESTED** (not implemented) | Not added to the current GitHub OAuth App flow |
 | Generated scaffold project built in GitHub Actions | **NOT TESTED** | Endpoint saves a buildable project template with workflow/tests; no live scaffold build was triggered |
 
+## 16. Phase 9 addendum — production readiness
+
+Phase 9 continued from the 8-phase checkpoint `ef6b6b6` (documentation commit after `05b1a82`) and
+preserved all earlier work plus the exact five-model fallback order. Full evidence is in
+[`PHASE_9.md`](PHASE_9.md).
+
+| Batch / commit | Change | Result |
+| --- | --- | --- |
+| `10c7e0d` | OAuth host/callback-scheme and deployment preflight hardening | **98 passed, 0 failed** |
+| `9974d00` | Key generator, live-AI verifier, deploy-file checker, two workflows, fallback-order test | **105 passed, 0 failed** |
+| `86d4c91` | Production fail-fast config validation and OAuth callback path checks | **111 passed, 0 failed** |
+| `5a0def3` | Masked release-readiness evaluator/script/workflow | **118 passed, 0 failed** |
+
+Final checkpoint `5a0def3` has all six push workflows green: Android CI `45652195081`, Cloud
+Backend CI `45652195102` (118/118), Production readiness `45652195282`, Dependency audit
+`45652195100`, Publish backend image `45652194998`, and Dependency graph `45652195047` attempt 2.
+Earlier dependency-submission attempts failed due GitHub API/rerun errors and are retained.
+
+Manual workflows produced honest blockers, not invented success: Live AI verification
+`45653061448` completed with `BLOCKED` (no provider keys), and Release readiness `45653254004`
+completed with `BLOCKED` (no deployed HTTPS backend/provider keys and no secret-list token). No
+secret value was printed. Live OAuth, live inference, deployment, production signing identity and
+physical-device verification remain blocked or untested exactly as in section 15.
+
 ## Commit chain
 
 `9770d88` → `0a9b02a` → `3c084b7` → `240b285` → `b06911a` → `3b3301a` → `b2770ed` →
 `da463cd` → `6a04e80` → `73d4289` → `46b6adc` → `87f8424` → `39fdfab` → `d1275d6` →
-`d74fb22` → `05b1a82`.
+`d74fb22` → `05b1a82` → `ef6b6b6` → `10c7e0d` → `9974d00` → `86d4c91` → `5a0def3`.
 
 Conclusions: all eight phase areas have automated verification; debug APK delivery, image
 generation, web search, task persistence and the signed release pipeline have live/artifact-level
-verification. Live OAuth, live provider inference, permanent HTTPS deployment, production signing,
-and physical-device behavior remain explicitly blocked or untested.
+verification. Phase 9 adds deployable/secret-safe production gates with 118/118 backend tests, but
+live OAuth, live provider inference, permanent HTTPS deployment, production signing, and
+physical-device behavior remain explicitly blocked or untested.

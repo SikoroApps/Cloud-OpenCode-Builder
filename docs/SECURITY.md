@@ -43,7 +43,8 @@
   production-safe.
 - Five tests cover window resets, key bounds, proxy handling, policy selection and real HTTP
   429 headers; the OAuth callback is rate-limited separately from OAuth start. The full backend
-  suite passed **96/96** locally after the bounded artifact-body hardening (95/95 in CI on `73d4289`).
+  suite passed **118/118** on final Phase 9 checkpoint `5a0def3` (previously 96/96 after artifact
+  hardening).
 
 ## Dependency audit
 
@@ -52,7 +53,22 @@
   `scripts/audit-dependencies.mjs`. Dependabot alerts are enabled and dependency updates are
   proposed weekly. See `docs/MASTER_COMPLETION_TRACKER.md`.
 
+## Phase 9 production controls
+
+- Production startup now fails fast with stable error codes when `CLOUD_BASE_URL` is not HTTPS,
+  rate limiting is disabled, `TRUST_PROXY` is not enabled, OAuth credentials are incomplete, the
+  callback host/path is inconsistent, or the mobile callback scheme is not `cloudopencode:`. No URL
+  or credential value appears in the error.
+- The deploy-file checker verifies loopback-only backend binding, persistent SQLite storage, a
+  healthy-backend dependency, Caddy HTTPS termination and security headers.
+- `npm run generate:key` emits one 32-byte key once to stdout with a stderr warning to store it only
+  in a secret manager; it never writes a file.
+- `npm run verify:ai` and `npm run check:release` print only status, names, booleans, blocker codes
+  and HTTP status. Live workflows inject provider keys by GitHub Actions secret reference only.
+- `docs/PHASE_9.md` records honest `BLOCKED` workflow results when keys/hosting are absent.
+
 ## Remaining external requirements
 
-- Live production secrets, HTTPS hosting and a signed release remain external requirements; see
+- Live production secrets, HTTPS hosting, production signing identity and physical-device
+  verification remain external requirements; see `docs/PHASE_9.md` and
   `docs/MASTER_COMPLETION_TRACKER.md`.

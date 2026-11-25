@@ -13,15 +13,19 @@ download signed APKs. Cloud tasks continue running even when the user's phone di
 
 ## Current verification checkpoint
 
-- Final code checkpoint: `05b1a82`; all five push workflows are green on this commit. See
+- Final Phase 9 code checkpoint: `5a0def3`; all six push workflows are green on this commit. See
+  [`docs/PHASE_9.md`](docs/PHASE_9.md) for the production-readiness audit and
   [`docs/FINAL_AUDIT_REPORT.md`](docs/FINAL_AUDIT_REPORT.md) for the complete 8-phase audit.
-- `Android CI` [`45636326703`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45636326703)
-  attempt 2: unit tests, lint, debug APK, API 35 emulator smoke test and HTTPS backend integration
-  all passed. Attempt 1 failed on a Cloudflare quick-tunnel 429 and is documented in the report.
-- `Cloud Backend CI` [`45636326609`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45636326609):
-  **96 tests passed, 0 failed**.
-- `Publish backend image` `45636326618`, `Dependency audit` `45636326512` and
-  `Submit dependency graph` `45636326557` all succeeded.
+- `Android CI` [`45652195081`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45652195081)
+  and `Cloud Backend CI` [`45652195102`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45652195102)
+  are green; the backend suite is **118 passed, 0 failed**.
+- `Production readiness` [`45652195282`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45652195282),
+  `Dependency audit` `45652195100`, `Publish backend image` `45652194998`, and
+  `Submit dependency graph` [`45652195047`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45652195047)
+  attempt 2 are green. Earlier dependency-submission API failures are documented in Phase 9.
+- Live AI verification [`45653061448`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45653061448)
+  and release readiness [`45653254004`](https://github.com/SikoroApps/Cloud-OpenCode-Builder/actions/runs/45653254004)
+  completed honestly with status `BLOCKED` because provider keys and a deployed HTTPS backend are absent.
 - Debug APK delivery was re-verified end-to-end on code checkpoint `73d4289`: artifact
   `15027061074` (`cloud-opencode-debug`), `app-debug.apk` **10,333,811 bytes**, SHA-256
   `6b65de0f61e50e30a342cb006e0f76232402a9d587d3e56af0b26abcfebccc71`. All 20 delivery checks
@@ -208,8 +212,21 @@ checkpoint:
   search-grounded chat with citations, and SQLite-backed tasks that survive backend restarts.
   **Live verified**. See `docs/PHASE_8.md`.
 
-The backend suite now contains **96 passing tests, 0 failed** (see the current checkpoint above).
-The HTTPS integration test exercises image upload/list/analysis, generation, search and the task
-lifecycle in addition to APK delivery. The authoritative status and remaining external blockers are
-in `docs/MASTER_COMPLETION_TRACKER.md`. Production release gates (deployed HTTPS backend, real
-GitHub OAuth consent, signing secrets, signed APK and physical device) are still outstanding.
+The Phase 8 backend suite was **96 passing tests, 0 failed**; the final Phase 9 suite is **118
+passed, 0 failed** (see the current checkpoint above). The HTTPS integration test exercises image
+upload/list/analysis, generation, search and the task lifecycle in addition to APK delivery. The
+authoritative status and remaining external blockers are in
+`docs/MASTER_COMPLETION_TRACKER.md`. Production release gates (deployed HTTPS backend, real GitHub
+OAuth consent, provider keys, production signing identity and physical device) are still outstanding.
+
+## Phase 9 status — production readiness
+
+Phase 9 preserves Phases 1–8 and the exact five-model fallback order while adding deployable
+configuration, fail-fast production config validation, masked live-AI/release-readiness gates, and
+secret-safe GitHub Actions workflows. Implementation commits: `10c7e0d` → `9974d00` → `86d4c91` →
+`5a0def3`; test counts progressed 98 → 105 → 111 → 118, all with 0 failures.
+
+Production backend deployment, live OAuth consent, live provider inference, production signing
+identity, and physical-device verification remain explicitly **BLOCKED**/**NOT TESTED** because the
+required host, OAuth app, API keys, production key and device are not present here. See
+[`docs/PHASE_9.md`](docs/PHASE_9.md) for exact evidence, run IDs and unresolved blockers.

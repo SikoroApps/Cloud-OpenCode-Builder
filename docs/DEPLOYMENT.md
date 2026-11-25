@@ -103,6 +103,35 @@ its scheme and HTTP status. It never prints the URL, credentials, tokens or keys
 
 `GET /api/config/readiness` returns the same masked configuration summary to an authenticated user.
 
+### Production fail-fast validation
+
+When the container runs with `NODE_ENV=production` (the Dockerfile default),
+`cloud/src/config-validation.ts` refuses to start the backend if any of these are unsafe:
+
+- `CLOUD_BASE_URL` is not HTTPS.
+- Rate limiting is disabled or proxy trust is not enabled behind Caddy.
+- GitHub OAuth is partially configured or incomplete.
+- `GITHUB_OAUTH_REDIRECT_URI` does not use `https`, has a path other than
+  `/api/github/oauth/callback`, or has a host different from `CLOUD_BASE_URL`.
+- `GITHUB_APP_CALLBACK_URL` does not use the `cloudopencode:` scheme.
+
+The thrown message contains only a stable error code, never a URL, token, key or secret value.
+
+### Release readiness gate
+
+From a machine authenticated to GitHub CLI:
+
+```sh
+cd cloud
+APP_REPO=<owner>/<app-repo> npm run check:release
+```
+
+It checks signing secret **names** with `gh secret list`, validates that `CLOUD_BASE_URL` is HTTPS,
+checks its `/health` status, and reports whether a provider key name is present. It prints only
+booleans, blocker codes and HTTP status. The manual `Release readiness` workflow performs the same
+check with secret references; an optional `RELEASE_READINESS_TOKEN` secret with permission to list
+target-repository secrets is needed when the built-in Actions token lacks that permission.
+
 ## Deployment gate
 
 A deployment may be called live only when all of the following are true:
