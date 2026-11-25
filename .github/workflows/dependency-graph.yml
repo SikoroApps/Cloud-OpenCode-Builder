@@ -26,5 +26,4 @@ jobs:
       - name: Submit full Gradle dependency graph for Dependabot alerts
         uses: gradle/actions/dependency-submission@v4
         with:
-          gradle-version: 8.9
           build-root-directory: android
