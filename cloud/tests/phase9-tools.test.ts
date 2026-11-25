@@ -77,6 +77,32 @@ test("live AI workflow injects secrets by reference only", () => {
   assert.equal(workflow.includes("Authorization"), false);
 });
 
+test("release readiness script reports blockers without printing values", () => {
+  const result = run(script("../scripts/check-release-readiness.mjs"), [], {
+    APP_REPO: "",
+    GH_TOKEN: "",
+    CLOUD_BASE_URL: "",
+    OPENCODE_API_KEY: "",
+    OPENROUTER_API_KEY: "provider-value-marker",
+  });
+  assert.equal(result.status, 0);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.status, "BLOCKED");
+  assert.equal(report.blockers.includes("target_repository_is_not_set_or_invalid"), true);
+  assert.equal(result.stdout.includes("provider-value-marker"), false);
+});
+
+test("release readiness workflow is manual and injects credentials by reference", () => {
+  const workflow = read(".github/workflows/release-readiness.yml");
+  assert.equal(workflow.includes("workflow_dispatch:"), true);
+  assert.equal(workflow.includes("npm run check:release"), true);
+  assert.equal(workflow.includes("secrets.RELEASE_READINESS_TOKEN || github.token"), true);
+  assert.equal(workflow.includes("secrets.OPENCODE_API_KEY"), true);
+  assert.equal(workflow.includes("secrets.OPENROUTER_API_KEY"), true);
+  assert.equal(workflow.includes('"${{ inputs.app_repo }}"'), false);
+  assert.equal(/sk-[A-Za-z0-9]{10,}/.test(workflow), false);
+});
+
 test("deploy file checker passes the hardened single-host runtime shape", () => {
   const result = run(script("../scripts/check-deploy-files.mjs"));
   assert.equal(result.status, 0);
