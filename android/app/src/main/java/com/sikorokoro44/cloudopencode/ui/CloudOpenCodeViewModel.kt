@@ -423,7 +423,8 @@ class CloudOpenCodeViewModel(
         refreshBuildArtifacts(buildId)
     }
 
-    fun refreshBuildArtifacts(buildId: String = _state.value.selectedBuildId ?: return) {
+    fun refreshBuildArtifacts(requestedBuildId: String? = null) {
+        val buildId = requestedBuildId ?: _state.value.selectedBuildId ?: return
         val token = _state.value.token ?: return
         viewModelScope.launch {
             _state.update { it.copy(apkDeliveryLoading = true, apkDeliveryMessage = null) }
