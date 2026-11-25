@@ -141,7 +141,22 @@ class CloudApiClientImpl(
                     attempts = ArrayList<AiAttemptDto>(),
                 )
             }
-            CloudChatResponse(userMessage, assistantMessage, ai)
+            val webSearchObject = response.optJSONObject("webSearch")
+            val webSearch = webSearchObject?.let { ws ->
+                WebSearchResponse(
+                    query = ws.optString("query"),
+                    provider = ws.optString("provider"),
+                    results = (ws.optJSONArray("results") ?: org.json.JSONArray()).let { array ->
+                        val list = java.util.ArrayList<WebSearchResult>()
+                        for (index in 0 until array.length()) {
+                            val item = array.optJSONObject(index) ?: continue
+                            list.add(WebSearchResult(item.optString("title"), item.optString("url"), item.optString("snippet")))
+                        }
+                        list
+                    },
+                )
+            }
+            CloudChatResponse(userMessage, assistantMessage, ai, webSearch)
         }
     }
 

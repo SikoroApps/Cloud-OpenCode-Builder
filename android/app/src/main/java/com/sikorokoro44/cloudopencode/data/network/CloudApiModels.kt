@@ -32,6 +32,7 @@ data class CloudChatResponse(
     val userMessage: ChatMessageDto?,
     val assistantMessage: ChatMessageDto?,
     val ai: AiResultDto?,
+    val webSearch: WebSearchResponse? = null,
 )
 
 data class GithubOAuthStart(
