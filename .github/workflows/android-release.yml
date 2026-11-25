@@ -68,6 +68,12 @@ jobs:
           set -euo pipefail
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
           test -s "$RUNNER_TEMP/release.jks"
+      - name: Temporary keystore debug
+        run: |
+          set -euo pipefail
+          echo "RUNNER_TEMP=$RUNNER_TEMP"
+          ls -la "$RUNNER_TEMP"
+          ls -la android | head -20
       - name: Assemble signed release APK
         working-directory: android
         env:
